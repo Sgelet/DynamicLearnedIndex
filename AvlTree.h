@@ -12,10 +12,11 @@ using uint = unsigned int;
 
 template<class T>
 class AVLTree{
+public:
     struct Node{
         Node *left = nullptr, *right = nullptr, *par = nullptr;
         uint size = 1;
-        int  balance = 0;
+        int height = 1;
         T val, min, max;
 
         Node() = default;
@@ -27,11 +28,23 @@ class AVLTree{
             delete left;
             delete right;
         }
+
+        inline
+        void makeLeftChild(Node* p){
+            if(!p) return;
+            p->par = this;
+            left = p;
+        }
+
+        inline
+        void makeRightChild(Node* p){
+            if(!p) return;
+            p->par = this;
+            right = p;
+        }
     };
 
     Node* root = nullptr;
-
-public:
 
     ~AVLTree(){
         delete root;
@@ -41,10 +54,11 @@ public:
         Node* parent = nullptr;
         Node* current = root;
         while(current){
+            onVisit(current);
             parent = current;
-            if(val < current->val) current = current->left;
-            else if (val > current->val) current = current->right;
-            else return; // Duplicate insertion
+            if(isLeaf(current)) break;
+            else if(val < current->right->min) current = current->left;
+            else current = current->right;
         }
         Node* inserted = new Node(val);
         inserted->par = parent;
@@ -62,72 +76,151 @@ public:
             parent->left = sibling;
         }
 
-        retrace(parent, true);
+        retrace(parent, true, false);
     }
 
     void remove(T val){
-        Node* parent = nullptr;
+        Node* parent;
         Node* current = root;
         while(current){
+            onVisit(current);
             parent = current;
-            if(val < current->val) current = current->left;
+            if(isLeaf(current)) break;
+            else if(val < current->right->min) current = current->left;
             else current = current->right;
         }
-        if(!parent || parent->val != val) return; // Val not found
-
+        if(!current || current->val != val) return; // Val not found
+        if(current == root){
+            delete current;
+            root = nullptr;
+            return;
+        }
         current = parent;
         parent = parent->par;
         Node* sibling;
-        if(isLeftChild(current)) {
-            sibling = parent->right;
-            parent->right = nullptr;
-        } else {
-            sibling = parent->left;
-            parent->left = nullptr;
-        }
+        if(isLeftChild(current)) sibling = parent->right;
+        else sibling = parent->left;
         sibling->par = parent->par;
         if(!parent->par) root = sibling;
         else if(isLeftChild(parent)) parent->par->left = sibling;
         else parent->par->right = sibling;
 
+        current->left = current->right = nullptr;
+        delete current;
+        parent->left = parent->right = nullptr;
         delete parent;
 
-        retrace(sibling, false);
+        onVisit(sibling);
+        retrace(sibling, false, false);
     }
 
-    void check(){
-        checker(root);
+    void join(T k, AVLTree* r){
+        Node* tl = root;
+        Node* tr = r->root;
+        Node* x = new Node(k);
+        if(height(tl) > height(tr)+1) joinRight(root,x, r->root);
+        else if(height(tr) > height(tl)+1) joinLeft(root,x,r->root);
+        else {
+           x->makeLeftChild(tl);
+           x->makeRightChild(tr);
+           updateData(x);
+        }
+        while(x->par) x = x->par;
+        root = x;
+        r->root = nullptr;
+    }
+
+    void join(AVLTree* r){
+        Node* current = root;
+        if(!current){
+            root = r->root;
+            r->root = nullptr;
+            return;
+        } else if(!r->root) return;
+        while(current->right) current = current->right;
+        T temp = current->val;
+        split(current->val, nullptr);
+        join(temp,r);
+
+    }
+
+    // Split s.t. l < k and r > k
+    // If k exists, delete it
+    void split(T k, AVLTree* r){
+        if(!root) return;
+        Node* parent = nullptr;
+        Node* v = root;
+        while(v){
+            parent = v;
+            if(v->val < k) v = v->right;
+            else if(v->val == k) break;
+            else v = v->left;
+        }
+        if(!v) v = parent;
+        AVLTree tl;
+        AVLTree tr;
+        AVLTree temp;
+        Node* current = v;
+        if(v->val == k){
+            current = v->par;
+            if(current){
+                if(isLeftChild(v)) current->left = nullptr;
+                else current->right = nullptr;
+            }
+            tl.root = v->left;
+            tr.root = v->right;
+            if(tl.root) tl.root->par = nullptr;
+            if(tr.root) tr.root->par = nullptr;
+            v->left = nullptr;
+            v->right = nullptr;
+            delete v;
+        }
+        while(current){
+            parent = current->par;
+            if(parent){
+                if(isLeftChild(current)) parent->left = nullptr;
+                else parent->right = nullptr;
+                current->par = nullptr;
+            }
+            if(current->val < k){
+                if(current->left) current->left->par = nullptr;
+                temp.root = current->left;
+                temp.join(current->val,&tl);
+                tl.join(&temp);
+            } else {
+                if(current->right) current->right->par = nullptr;
+                temp.root = current->right;
+                tr.join(current->val,&temp);
+            }
+            current = parent;
+        }
+        root = tl.root;
+        if(r) r->root = tr.root;
+        tl.root = nullptr;
+        tr.root = nullptr;
+        temp.root = nullptr;
     }
 
 protected:
-    int checker(Node *x){
-        if(!x) return 0;
 
-        auto checkL = checker(x->left);
-        auto checkR = checker(x->right);
-
-        // Checker(right) - Checker(left) == balance factor
-        if(x->balance != checkR - checkL){
-            std::cout << "INCORRECT BALANCE" << std::endl;
-        }
-
-        // Balance factor -1,0,1
-        if(x->balance < -1 || x->balance > 1){
-            std::cout << "TREE NOT BALANCED" << std::endl;
-        }
-        // Check sizes
-
-        if(x->size != size(x->left)+ size(x->right) + isLeaf(x)){
-            std::cout << "INCORRECT SIZE" << std::endl;
-        }
-        // Check min,max
-
-        return std::max(checkL,checkR) + 1;
+    void joinRight(Node* tl, Node* x, Node* tr){
+        while(tl->right && height(tl) > height(tr) + 1) tl = tl->right;
+        if(tl && tl->par) tl->par->makeRightChild(x);
+        x->makeLeftChild(tl);
+        x->makeRightChild(tr);
+        retrace(x,true, true);
+    }
+    void joinLeft(Node* tl, Node* x, Node* tr){
+        while(tr->left && height(tr) > height(tl) + 1) tr = tr->left;
+        if(tr && tr->par) tr->par->makeLeftChild(x);
+        x->makeLeftChild(tl);
+        x->makeRightChild(tr);
+        retrace(x,true, true);
     }
 
     void rotateR(Node* x){
         Node* y = x->left;
-
+        onVisit(y);
         x->left = y->right;
         if(y->right) y->right->par = x;
         y->par = x->par;
@@ -139,14 +232,11 @@ protected:
 
         updateData(x);
         updateData(y);
-
-        x->balance += 1 - std::min(0,y->balance);
-        y->balance += 1 + std::max(0,x->balance);
     }
 
     void rotateL(Node* x){
         Node* y = x->right;
-
+        onVisit(y);
         x->right = y->left;
         if(y->left) y->left->par = x;
         y->par = x->par;
@@ -158,52 +248,66 @@ protected:
 
         updateData(x);
         updateData(y);
-
-        x->balance += - 1 - std::max(0,y->balance);
-        y->balance += - 1 + std::min(0,x->balance);
     }
 
     void rebalance(Node* x){
-        if(x->balance > 0){
-            if(x->right->balance < 0) rotateR(x->right);
+        onVisit(x);
+        if(height(x->right) > height(x->left)){
+            if(height(x->right->right) < height(x->right->left)){
+                onVisit(x->right);
+                rotateR(x->right);
+            }
             rotateL(x);
-        } else if (x->balance < 0){
-            if(x->left->balance > 0) rotateL(x->left);
+        } else if (height(x->right) < height(x->left)){
+            if(height(x->left->right) > height(x->left->left)) {
+                onVisit(x->left);
+                rotateL(x->left);
+            }
             rotateR(x);
         }
     }
 
-    void retrace(Node* x, const bool insertion){
+    void retrace(Node* x, const bool insertion, const bool earlyExit){
         bool balance = true;
+        int dif;
 
         for(auto current = x; current; current = current->par){
             updateData(current);
-            if(!balance) continue;
+            if(!balance){
+                continue;
+            }
 
-            if(current->balance < -1 || current->balance > 1){
+            dif = height(current->left) - height(current->right);
+
+            if(dif < -1 || dif > 1){
                 rebalance(current);
                 current = current->par;
-                if(insertion || (current->balance == -1 || current->balance == 1)){
+                dif = height(current->left) - height(current->right);
+                if(insertion || dif == -1 || dif == 1){
                     balance = false;
                     continue;
                 }
             }
-
-            if(current->par){
-                current->par->balance += 1 - 2*(insertion == isLeftChild(current));
-                if ((insertion && current->par->balance == 0) || (!insertion && (current->par->balance == -1 || current->par->balance == 1))) balance = false;
-            }
+            //if ((insertion && dif == 0) || (!insertion && (dif == -1 || dif == 1))) balance = false;
         }
     }
 
     inline
     void updateData(Node* x){
         x->size = size(x->left) + size(x->right) + isLeaf(x);
+        x->height = std::max(height(x->left), height(x->right)) + 1;
         if(x->left) x->min = x->left->min;
         else x->min = x->val;
         if(x->right) x->max = x->right->max;
         else x->max = x->val;
+        onUpdate(x);
     }
+
+    virtual inline
+    void onUpdate(Node* x){};
+
+    virtual inline
+    void onVisit(Node* x){};
 
     inline
     bool isLeaf(const Node* x){
@@ -216,13 +320,16 @@ protected:
     }
 
     inline
+    int height(const Node* x){
+        if(x) return x->height;
+        return 0;
+    }
+
+    inline
     uint size(const Node* x){
         if(x) return x->size;
         return 0;
     }
-
-
-
 };
 
 #endif //DYNAMICCONVEXHULL_AVLTREE_H
