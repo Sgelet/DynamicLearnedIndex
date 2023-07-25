@@ -7,60 +7,8 @@
 
 #include <vector>
 #include "AvlTree.h"
+#include "util.h"
 #define isLeaf this->isLeaf
-
-template<class T>
-struct Point{
-    T x,y;
-
-    Point(T x, T y):x(x),y(y) {};
-
-    Point() = default;
-
-    constexpr bool operator==(const Point& p){
-        return (x == p.x) && (y == p.y);
-    }
-
-    constexpr bool operator!=(const Point& p){
-        return !(*this == p);
-    }
-
-    constexpr bool operator<(const Point& p){
-        return (x < p.x) || (x == p.x && y < p.y);
-    }
-
-    constexpr bool operator<=(const Point& p){
-        return !(p < *this);
-    }
-};
-
-template<class T>
-struct Bridge{
-    Point<T> a,b;
-
-    Bridge(Point<T> a, Point<T> b): a(a),b(b) {};
-};
-
-template<class T>
-struct Bridges{
-    Bridge<T> upper,lower;
-
-    constexpr bool operator==(const Bridges& b){
-        return upper.a == b.upper.a;
-    }
-
-    constexpr bool operator!=(const Bridges& b){
-        return !(*this == b);
-    }
-
-    constexpr bool operator<(const Bridges& b){
-        return upper.a < b.upper.a;
-    }
-
-    constexpr bool operator<=(const Bridges& b){
-        return !(b < *this);
-    }
-};
 
 template<class T>
 class CHTree : AVLTree<Bridges<T>>{
@@ -242,17 +190,11 @@ protected:
     }
 public:
     void insert(T x, T y){
-        AVLTree<Bridges<T>>::insert({
-            {{x,y},{x,y}},
-            {{x,y},{x,y}}
-        });
+        AVLTree<Bridges<T>>::insert(Bridges(x,y));
     }
 
     void remove(T x, T y){
-        AVLTree<Bridges<T>>::remove({
-            {{x,y},{x,y}},
-            {{x,y},{x,y}}
-        });
+        AVLTree<Bridges<T>>::remove(Bridges(x,y));
     }
 
     bool covers(T x, T y){

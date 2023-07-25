@@ -1,14 +1,26 @@
-mapfile -t files <<< "$(ls -1 q*18.data)"
+mapfile -t files <<< "$(ls -1 *.data)"
 
-tag="qCH"
+declare -a variations=(
+  "CH"
+  "CQ"
+  "GA"
+  "ED"
+)
+
+variant=0
 length=${#files[@]}
-for f in "${!files[@]}";
+
+for i in "${variations[@]}"
 do
-  full="${files[$f]##*/}"
-  filename="${full%.*}"
-  echo "${files[$f]}"
-  echo "${tag}" >> out_raw/${tag}${filename}.out
-  cat "${files[$f]}" | ./cmake-build-release/DynamicConvexHull RUN 1000 >> out_raw/${tag}${filename}.out
-  cat "${files[$f]}" | ./cmake-build-release/DynamicConvexHull RUN 1000 >> out_raw/${tag}${filename}.out
-  cat "${files[$f]}" | ./cmake-build-release/DynamicConvexHull RUN 1000 >> out_raw/${tag}${filename}.out
+  ((variant++))
+  for f in "${!files[@]}";
+  do
+   full="${files[$f]##*/}"
+   filename="${full%.*}"
+   echo "${files[$f]}"
+   echo "$i" >> out_raw/$i${filename}.out
+   cat "${files[$f]}" | ./cmake-build-release/DynamicConvexHull RUN $variant 10000 >> out_raw/$i${filename}.out
+   cat "${files[$f]}" | ./cmake-build-release/DynamicConvexHull RUN $variant 10000 >> out_raw/$i${filename}.out
+   cat "${files[$f]}" | ./cmake-build-release/DynamicConvexHull RUN $variant 10000 >> out_raw/$i${filename}.out
+  done
 done

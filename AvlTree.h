@@ -130,7 +130,23 @@ public:
         r->root = nullptr;
     }
 
-    void join(AVLTree* r){
+    void join(Node* k, AVLTree* r) {
+        Node *tl = root;
+        Node *tr = r->root;
+        Node *x = k;
+        if (height(tl) > height(tr) + 1) joinRight(root, x, r->root);
+        else if (height(tr) > height(tl) + 1) joinLeft(root, x, r->root);
+        else {
+            x->makeLeftChild(tl);
+            x->makeRightChild(tr);
+            updateData(x);
+        }
+        while (x->par) x = x->par;
+        root = x;
+        r->root = nullptr;
+    }
+
+        void join(AVLTree* r){
         Node* current = root;
         if(!current){
             root = r->root;
@@ -185,20 +201,21 @@ public:
             if(current->val < k){
                 if(current->left) current->left->par = nullptr;
                 temp.root = current->left;
-                temp.join(current->val,&tl);
+                temp.join(current,&tl);
                 tl.join(&temp);
             } else {
                 if(current->right) current->right->par = nullptr;
                 temp.root = current->right;
-                tr.join(current->val,&temp);
+                tr.join(current,&temp);
             }
             current = parent;
         }
         root = tl.root;
-        if(r) r->root = tr.root;
+        if(r) {
+            r->root = tr.root;
+            tr.root = nullptr;
+        }
         tl.root = nullptr;
-        tr.root = nullptr;
-        temp.root = nullptr;
     }
 
 protected:
