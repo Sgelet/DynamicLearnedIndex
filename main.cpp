@@ -4,6 +4,7 @@
 #include <cstring>
 #include <cmath>
 #include "CQTree.h"
+#include "CHTree.h"
 #include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
 #include <CGAL/convex_hull_2.h>
 #include <CGAL/ch_graham_andrew.h>
@@ -15,10 +16,9 @@ bool verificationTest(int verify_step, bool shuffle);
 
 const double PI = std::acos(-1);
 
-std::vector<std::pair<double,double>> generate_data(size_t n, int mode) {
+std::vector<std::pair<double,double>> generate_data(const size_t n, const int mode, const int seed) {
     std::vector<std::pair<double,double>> data(n);
-    //std::mt19937 engine(42); // For generation
-    std::mt19937 engine(9001); // For queries
+    std::mt19937 engine(seed); // 42 for generation, 9001 for queries
 
     if(mode == 0){
         double r = 2147483647;
@@ -53,29 +53,30 @@ std::vector<std::pair<double,double>> generate_data(size_t n, int mode) {
     return data;
 }
 using hrc = std::chrono::high_resolution_clock;
-void runtimeTest(int window_size){
+void runtimeTest(const int test, const int window_size){
     // Read data
     std::mt19937 engine(42);
     double x;
     double y;
     std::vector<std::pair<double,double>> data;
-    //std::vector<Point_2> data;
+    std::vector<Point_2> data_p2;
     while(std::cin >> x){
         std::cin >> y;
         data.emplace_back(x,y);
     }
 
-    std::vector<std::pair<int,int>> queries(1000);
+    std::vector<std::pair<int,int>> updates(1000);
     for(int i=0; i<500; i++){
-        queries.emplace_back(1,i);
-        queries.emplace_back(0,i);
+        updates.emplace_back(1,i);
+        updates.emplace_back(0,i);
     }
-
-    //auto queries = generate_data(2<<20,1);
+    auto queries = generate_data(2<<20,1, 9001);
 
     std::shuffle(data.begin(),data.end(),engine);
+    for(auto e: data) data_p2.emplace_back(e.first,e.second);
 
-    auto CH = CQTree<double>();
+    auto CQ = CQTree<double>();
+    auto CH = CHTree<double>();
 
     std::vector<Point_2> out = {};
 
@@ -85,15 +86,19 @@ void runtimeTest(int window_size){
     auto t1 = hrc::now();
     auto acc = t1-t0;
 
-    bool b;
+    volatile bool b;
     for(size_t i=0; i<data.size()/window_size; i++){
         t0 = hrc::now();
 
-        for(size_t j=i*window_size; j<(i+1)*window_size; j++){
-            CH.insert(data[j].first,data[j].second);
+        if(test == 3) CGAL::ch_graham_andrew(data_p2.begin(),data_p2.begin()+(i+1)*window_size,std::back_inserter(out));
+        else if(test == 4) CGAL::convex_hull_2(data_p2.begin(),data_p2.begin()+(i+1)*window_size,std::back_inserter(out));
+        else {
+            for (size_t j = i * window_size; j < (i + 1) * window_size; j++) {
+                if(test == 1) CH.insert(data[j].first, data[j].second);
+                else CQ.insert(data[j].first,data[j].second);
+            }
         }
 
-        //CGAL::ch_graham_andrew(data.begin(),data.begin()+(i+1)*window_size,std::back_inserter(out));
         t1 = hrc::now();
         acc += t1 - t0;
         std::cout << (i+1)*window_size << " " << (t1 - t0).count() * 1e-9 << " " << acc.count() * 1e-9;
@@ -102,22 +107,47 @@ void runtimeTest(int window_size){
 
         t0 = hrc::now();
 
-        for(auto q :queries){
-            if(q.first) CH.remove(data[q.second].first,data[q.second].second);
-            else CH.insert(data[(i+1)*window_size+q.second].first,data[(i+1)*window_size+q.second].second);
-            //b = CH.covers(q.first,q.second);
+        for(auto q :queries) {
+            if (test == 1) b ^= CH.covers(q.first, q.second);
+            else if (test == 2) b ^= CQ.covers(q.first, q.second);
+        }
+
+        t1 = hrc::now();
+        std::cout << " " << (t1-t0).count() * 1e-9;
+
+        t0 = hrc::now();
+
+        for(auto u: updates){
+            if(test == 1){
+                if(u.first) CH.remove(data[u.second].first,data[u.second].second);
+                else CH.insert(data[(i+1)*window_size+u.second].first,data[(i+1)*window_size+u.second].second);
+            }
+            if(test == 2){
+                if(u.first) CQ.remove(data[u.second].first,data[u.second].second);
+                else CQ.insert(data[(i+1)*window_size+u.second].first,data[(i+1)*window_size+u.second].second);
+            }
         }
 
         t1 = hrc::now();
         std::cout << " " << (t1-t0).count() * 1e-9  <<std::endl;
-        /*
-        for(auto q :queries){
-            if(q.first) CH.insert(data[q.second].first,data[q.second].second);
-            else CH.remove(data[(i+1)*window_size+q.second].first,data[(i+1)*window_size+q.second].second);
+
+
+        for(auto u: updates){
+            if(test == 1){
+                if(u.first) CH.insert(data[u.second].first,data[u.second].second);
+                else CH.remove(data[(i+1)*window_size+u.second].first,data[(i+1)*window_size+u.second].second);
+            }
+            if(test == 2){
+                if(u.first) CQ.insert(data[u.second].first,data[u.second].second);
+                else CQ.remove(data[(i+1)*window_size+u.second].first,data[(i+1)*window_size+u.second].second);
+            }
         }
-         */
+
+
         out.clear();
     }
+
+    /*
     std::shuffle(data.begin(),data.end(),engine);
 
     t0 = hrc::now();
@@ -133,6 +163,7 @@ void runtimeTest(int window_size){
         acc += t1 - t0;
         std::cout << (data.size()/window_size)*window_size - i * window_size << " " << (t1 - t0).count() * 1e-9 << " " << acc.count() * 1e-9 << std::endl;
     }
+     */
 }
 
 int main(int argc, char* argv[]){
@@ -146,12 +177,12 @@ int main(int argc, char* argv[]){
         else std::cout << "FAILURE";
         std::cout << std::endl;
     }else if(!std::strcmp(argv[1],"GEN")){
-        auto data = generate_data(1<<atoi(argv[2]),atoi(argv[3]));
+        auto data = generate_data(1<<atoi(argv[2]),atoi(argv[3]),42);
         for(auto e: data){
             std::cout << e.first << " " << e.second << std::endl;
         }
     }else if(!std::strcmp(argv[1],"RUN")){
-        runtimeTest(atoi(argv[2]));
+        runtimeTest(atoi(argv[2]),atoi(argv[3]));
     }
 }
 

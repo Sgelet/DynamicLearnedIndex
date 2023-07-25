@@ -48,7 +48,7 @@ def make_plot(data):
     plt.tight_layout()
     ls = ['-','--','-.',(0,(3,2,1,2,1,2)),':']
     cl = ["orange","blue","green"]
-    i = 0;
+    i = 0;t
     fig, ax = plt.subplots()
     for d in data:
         ax.plot(d["Nums"],d["Inserting"],label = trans[d["model"]][0],c=trans[d["model"]][1],ls=trans[d["model"]][2])
