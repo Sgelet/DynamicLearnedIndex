@@ -54,7 +54,6 @@ using Node = typename AVLTree<BCQ<Traits>>::Node;
 using HNode = typename CQueue<Traits>::Node;
 using Bridge = typename Traits::Segment_2;
 using Point = typename Traits::Point_2;
-using Bridges = Bridges<Traits>;
 using Midpoint = typename Traits::Construct_midpoint_2;
 using Compare_slope = typename Traits::Compare_slope_2;
 using Compare_at_x = typename Traits::Compare_y_at_x_2;
