@@ -4,7 +4,6 @@ declare -a variations=(
   "CH"
   "CQ"
   "GA"
-  "ED"
 )
 
 variant=0
@@ -19,8 +18,8 @@ do
    filename="${full%.*}"
    echo "${files[$f]}"
    echo "$i" >> out_raw/$i${filename}.out
-   cat "${files[$f]}" | ./cmake-build-release/DynamicConvexHull RUN $variant 10000 >> out_raw/$i${filename}.out
-   cat "${files[$f]}" | ./cmake-build-release/DynamicConvexHull RUN $variant 10000 >> out_raw/$i${filename}.out
-   cat "${files[$f]}" | ./cmake-build-release/DynamicConvexHull RUN $variant 10000 >> out_raw/$i${filename}.out
+   cat "${files[$f]}" | ./cmake-build-release/DynamicConvexHull RUN $variant 50000 >> out_raw/$i${filename}.out
+   cat "${files[$f]}" | ./cmake-build-release/DynamicConvexHull RUN $variant 50000 >> out_raw/$i${filename}.out
+   cat "${files[$f]}" | ./cmake-build-release/DynamicConvexHull RUN $variant 50000 >> out_raw/$i${filename}.out
   done
 done

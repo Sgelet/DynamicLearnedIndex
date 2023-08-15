@@ -16,8 +16,7 @@ template<class Traits>
 class CHTree : AVLTree<Bridges<Traits>>{
 using Bridge = typename Traits::Segment_2;
 using Point = typename Traits::Point_2;
-using Bridges = Bridges<Traits>;
-using Node = typename AVLTree<Bridges>::Node;
+using Node = typename AVLTree<Bridges<Traits>>::Node;
 using Midpoint = typename Traits::Construct_midpoint_2;
 using Compare_slope = typename Traits::Compare_slope_2;
 using Compare_at_x = typename Traits::Compare_y_at_x_2;
@@ -101,7 +100,7 @@ protected:
 
 
     Node* find(Point key, const bool left, const bool lower){
-        auto current = AVLTree<Bridges>::root;
+        auto current = AVLTree<Bridges<Traits>>::root;
         while(current && !isLeaf(current)){
             if(current->val[lower][!left] == key) return current;
             else if (current->val[lower].min().x() < key.x()) current = current->right;
@@ -123,7 +122,7 @@ protected:
      */
 
     bool covers(Point p, const bool lower){
-        auto current = AVLTree<Bridges>::root;
+        auto current = AVLTree<Bridges<Traits>>::root;
         while(current){
             if(current->val[lower].min().x() <= p.x()){
                 if(p.x() <= current->val[lower].max().x()){
@@ -153,13 +152,13 @@ protected:
 
     std::vector<Point> hullPoints(const bool lower){
         std::vector<Point> res;
-        Node* e = AVLTree<Bridges>::root;
+        Node* e = AVLTree<Bridges<Traits>>::root;
         if(!e || isLeaf(e)) return res;
         while(e){
             res.insert(res.begin(), e->val[lower].min());
             e = find(res.front(),false,lower);
         }
-        e = AVLTree<Bridges>::root;
+        e = AVLTree<Bridges<Traits>>::root;
         while(e){
             res.push_back(e->val[lower].max());
             e = find(res.back(),true,lower);
@@ -174,11 +173,11 @@ protected:
 
 public:
     void insert(Point p){
-        AVLTree<Bridges>::insert({Bridge(p,p),Bridge(p,p)});
+        AVLTree<Bridges<Traits>>::insert({Bridge(p,p),Bridge(p,p)});
     }
 
     void remove(Point p){
-        AVLTree<Bridges>::remove({Bridge(p,p),Bridge(p,p)});
+        AVLTree<Bridges<Traits>>::remove({Bridge(p,p),Bridge(p,p)});
     }
 
     bool covers(Point p){

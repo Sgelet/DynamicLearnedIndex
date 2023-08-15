@@ -58,11 +58,10 @@ void runtimeTest(const int test, const int window_size){
     std::mt19937 engine(42);
     double x;
     double y;
-    std::vector<std::pair<double,double>> data;
     std::vector<Point_2> data_p2;
     while(std::cin >> x){
         std::cin >> y;
-        data.emplace_back(x,y);
+        data_p2.emplace_back(x,y);
     }
 
     std::vector<std::pair<int,int>> updates(1000);
@@ -72,8 +71,7 @@ void runtimeTest(const int test, const int window_size){
     }
     auto queries = generate_data(2<<20,1, 9001);
 
-    std::shuffle(data.begin(),data.end(),engine);
-    for(auto e: data) data_p2.emplace_back(e.first,e.second);
+    std::shuffle(data_p2.begin(),data_p2.end(),engine);
 
     auto CQ = CQTree<K>();
     auto CH = CHTree<K>();
@@ -87,7 +85,7 @@ void runtimeTest(const int test, const int window_size){
     auto acc = t1-t0;
 
     volatile bool b;
-    for(size_t i=0; i<data.size()/window_size; i++){
+    for(size_t i=0; i<data_p2.size()/window_size; i++){
         t0 = hrc::now();
 
         if(test == 3) CGAL::ch_graham_andrew(data_p2.begin(),data_p2.begin()+(i+1)*window_size,std::back_inserter(out));
