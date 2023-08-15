@@ -10,190 +10,132 @@
 #include "util.h"
 #define isLeaf this->isLeaf
 
-template<class T>
-using CQueue = AVLTree<Bridge<T>>;
+template<class Traits>
+struct comp_xy{
+    static constexpr auto comp = typename Traits::Compare_xy_2();
+    bool operator()(const typename Traits::Segment_2& lhs, const typename Traits::Segment_2& rhs) const {
+        return comp(lhs[0],rhs[0]) == CGAL::SMALLER;
+    }
+};
 
-template<class T>
+template<class Traits>
+using CQueue = AVLTree<typename Traits::Segment_2,comp_xy<Traits>>;
+
+template<class Traits>
 struct BCQ{
-    Bridges<T> bridges;
-    CQueue<T> uh;
-    CQueue<T> lh;
+    using Bridge = typename Traits::Segment_2;
+    Bridges<Traits> bridges;
+    std::array<CQueue<Traits>,2> hulls;
 
-    BCQ(T x, T y):bridges(x,y){};
+    BCQ(Bridge x, Bridge y):bridges(x,y){};
 
     BCQ(BCQ& b):bridges(b.bridges){};
 
-    constexpr bool operator==(const BCQ& b){
+    constexpr bool operator==(const BCQ& b) const{
         return bridges == b.bridges;
     }
 
-    constexpr bool operator!=(const BCQ& b){
+    constexpr bool operator!=(const BCQ& b) const{
         return !(*this == b);
     }
 
-    constexpr bool operator<(const BCQ& b){
+    constexpr bool operator<(const BCQ& b) const{
         return bridges < b.bridges;
     }
 
-    constexpr bool operator<=(const BCQ& b){
+    constexpr bool operator<=(const BCQ& b) const{
         return !(b < *this);
     }
 };
 
-template<class T>
-class CQTree : AVLTree<BCQ<T>>{
-using Node = typename AVLTree<BCQ<T>>::Node;
-using HNode = typename CQueue<T>::Node;
+template<class Traits>
+class CQTree : AVLTree<BCQ<Traits>>{
+using Node = typename AVLTree<BCQ<Traits>>::Node;
+using HNode = typename CQueue<Traits>::Node;
+using Bridge = typename Traits::Segment_2;
+using Point = typename Traits::Point_2;
+using Bridges = Bridges<Traits>;
+using Midpoint = typename Traits::Construct_midpoint_2;
+using Compare_slope = typename Traits::Compare_slope_2;
+using Compare_at_x = typename Traits::Compare_y_at_x_2;
+
+const Midpoint midpoint = Midpoint();
+const Compare_slope compare_slope = Compare_slope();
+const Compare_at_x compare_at_x = Compare_at_x();
 
 protected:
-    struct Line{
-        double slope,offset;
-
-        double eval(const T& x){ return slope*x+offset; }
-
-        Line() = default;
-
-        Line(const Point<T>& v0, const Point<T>& v1){
-            slope = v0.x == v1.x ? 0 : (v1.y - v0.y)/(v1.x - v0.x);
-            offset = v0.y - slope * v0.x;
-        }
-    };
-
-    T avgX(const Point<T>& l, const Point<T>& r){
-        return l.x+(r.x - l.x)/2;
+    // TODO: Degeneracy check
+    bool slope_comp(const Bridge& l, const Bridge& r, const bool lower){
+        CGAL::Comparison_result res = compare_slope(l,r);
+        if(res == CGAL::EQUAL) return true;
+        return (res == CGAL::SMALLER) != lower;
     }
 
+    bool m_comp(const Bridge& l, const Bridge& r, const Point& m, const bool lower) {
+        if(l.is_vertical()) return lower;
+        if(r.is_vertical()) return !lower;
+        CGAL::Comparison_result res = compare_at_x(m, l.supporting_line(), r.supporting_line());
+        if (res == CGAL::EQUAL) return true;
+        return (res == CGAL::SMALLER) == lower;
+    }
 
-    Bridge<T> findUpperBridge(Node* v){
-        HNode* x = v->left->val.uh.root;
-        HNode* y = v->right->val.uh.root;
-        Line e_l, e_r, lr;
-        T lx, rx, m;
-        Point<T> l,r;
+    Bridge findBridge(Node* v, const bool lower){
+        HNode* x = v->left->val.hulls[lower].root;
+        HNode* y = v->right->val.hulls[lower].root;
+        Bridge e_l, e_r, lr;
         bool undecided;
         bool foundl = false;
         bool foundr = false;
-        m = avgX(v->left->max.bridges.upper.b,v->right->min.bridges.upper.a);
+        Point l,r;
+        Point m = midpoint(v->left->max.bridges[lower].max(),v->right->min.bridges[lower].min());
         if(!x){
             foundl = true;
-            l = v->left->val.bridges.upper.a;
+            l = v->left->val.bridges[lower].min();
         }
         if(!y){
             foundr = true;
-            r = v->right->val.bridges.upper.a;
+            r = v->right->val.bridges[lower].min();
         }
         while (!foundl || !foundr) {
             undecided = true;
             if(!foundl){
-                e_l = Line(x->val.a,x->val.b);
-                lx = avgX(x->val.a,x->val.b);
-                l = {lx,e_l.eval(lx)};
+                e_l = x->val;
+                l = midpoint(x->val);
             }
             if(!foundr) {
-                e_r = Line(y->val.a, y->val.b);
-                rx = avgX(y->val.a, y->val.b);
-                r = {rx, e_r.eval(rx)};
+                e_r = y->val;
+                r = midpoint(y->val);
             }
-            lr = Line(l,r);
-            if (e_l.slope <= lr.slope && !foundl){
+            lr = Bridge(l,r);
+            if (!foundl && slope_comp(e_l,lr,lower)){
                 if(x->left) x = x->left;
                 else{
                     foundl = true;
-                    l = x->val.a;
+                    l = x->val.min();
                 }
                 undecided = false;
             }
-            if (lr.slope <= e_r.slope && !foundr) {
+            if (!foundr && slope_comp(lr,e_r,lower)) {
                 if(y->right) y = y->right;
                 else{
                     foundr = true;
-                    r = y->val.b;
+                    r = y->val.max();
                 }
                 undecided = false;
             }
             if (undecided) {
                 //T m = avgX(foundl ? l : x->val.b,foundr ? r: y->val.a);
-                auto a = e_l.eval(m);
-                auto b = e_r.eval(m);
-                if (!foundl && a >= b || foundr) {
+                if (foundr ||  (!foundl && m_comp(e_l,e_r,m,lower))) {
                     if(x->right) x = x->right;
                     else{
                         foundl = true;
-                        l = x->val.b;
+                        l = x->val.max();
                     }
                 } else {
                     if(y->left) y = y->left;
                     else{
                         foundr = true;
-                        r = y->val.a;
-                    }
-                }
-            }
-        }
-        return {l,r};
-    }
-
-    Bridge<T> findLowerBridge(Node* v){
-        HNode* x = v->left->val.lh.root;
-        HNode* y = v->right->val.lh.root;
-        Line e_l, e_r, lr;
-        T lx, rx, m;
-        Point<T> l,r;
-        bool undecided;
-        bool foundl = false;
-        bool foundr = false;
-        m = avgX(v->left->max.bridges.lower.b,v->right->min.bridges.lower.a);
-        if(!x){
-            foundl = true;
-            l = v->left->val.bridges.lower.a;
-        }
-        if(!y){
-            foundr = true;
-            r = v->right->val.bridges.lower.a;
-        }
-        while (!foundl || !foundr) {
-            undecided = true;
-            if(!foundl){
-                e_l = Line(x->val.a,x->val.b);
-                lx = avgX(x->val.a,x->val.b);
-                l = {lx,e_l.eval(lx)};
-            }
-            if(!foundr) {
-                e_r = Line(y->val.a, y->val.b);
-                rx = avgX(y->val.a, y->val.b);
-                r = {rx, e_r.eval(rx)};
-            }
-            lr = Line(l,r);
-            if (e_l.slope >= lr.slope && !foundl){
-                if(x->left) x = x->left;
-                else{
-                    foundl = true;
-                    l = x->val.a;
-                }
-                undecided = false;
-            }
-            if (lr.slope >= e_r.slope && !foundr) {
-                if(y->right) y = y->right;
-                else{
-                    foundr = true;
-                    r = y->val.b;
-                }
-                undecided = false;
-            }
-            if (undecided) {
-                auto a = e_l.eval(m);
-                auto b = e_r.eval(m);
-                if (!foundl && a <= b || foundr) {
-                    if(x->right) x = x->right;
-                    else{
-                        foundl = true;
-                        l = x->val.b;
-                    }
-                } else {
-                    if(y->left) y = y->left;
-                    else{
-                        foundr = true;
-                        r = y->val.a;
+                        r = y->val.min();
                     }
                 }
             }
@@ -203,38 +145,32 @@ protected:
 
     void onUpdate(Node* x){
         if(isLeaf(x)) return;
-        auto ub = findUpperBridge(x);
-        auto lb = findLowerBridge(x);
-        x->val.bridges.upper = ub;
-        x->val.bridges.lower = lb;
-        CQueue<T> left, right;
-        x->left->val.uh.split({ub.a,ub.a},&left);
-        x->right->val.uh.split({ub.b,ub.b},&right);
-        x->left->val.uh.join(ub,&right);
-        x->val.uh.join(&(x->left->val.uh));
-        x->left->val.uh.join(&left);
-        // Lower
-        x->left->val.lh.split({lb.a,lb.a},&left);
-        x->right->val.lh.split({lb.b,lb.b},&right);
-        x->left->val.lh.join(lb,&right);
-        x->val.lh.join(&(x->left->val.lh));
-        x->left->val.lh.join(&left);}
+        auto ub = findBridge(x,0);
+        auto lb = findBridge(x,1);
+        x->val.bridges[0] = ub;
+        x->val.bridges[1] = lb;
+        CQueue<Traits> left, right;
+        for(int i=0; i<2; ++i){
+            x->left->val.hulls[i].split(x->val.bridges[i],&left);
+            x->right->val.hulls[i].split(x->val.bridges[i],&right);
+            x->left->val.hulls[i].join(x->val.bridges[i],&right);
+            x->val.hulls[i].join(&(x->left->val.hulls[i]));
+            x->left->val.hulls[i].join(&left);
+        }
+    }
 
     // TODO: Split
     void onVisit(Node* x){
        if(isLeaf(x)) return;
-       CQueue<T> right;
-       // Upper
-       x->val.uh.split(x->val.bridges.upper,&right);
-       x->val.uh.join(&(x->left->val.uh));
-       x->left->val.uh.join(&(x->val.uh));
-       x->right->val.uh.join(&right);
-       // Lower
-       x->val.lh.split(x->val.bridges.lower,&right);
-       x->val.lh.join(&(x->left->val.lh));
-       x->left->val.lh.join(&(x->val.lh));
-       x->right->val.lh.join(&right);
+       CQueue<Traits> right;
+       for(int i=0;i<2;++i){
+           x->val.hulls[i].split(x->val.bridges[i],&right);
+           x->val.hulls[i].join(&(x->left->val.hulls[i]));
+           x->left->val.hulls[i].join(&(x->val.hulls[i]));
+           x->right->val.hulls[i].join(&right);
+       }
     }
+    /*
     void hullPoints(HNode* x, std::vector<std::pair<T,T>>& acc){
         if(!x) return;
         hullPoints(x->left,acc);
@@ -274,16 +210,16 @@ protected:
         }
         return false;
     }
-
+*/
 public:
-    void insert(T x, T y){
-        AVLTree<BCQ<T>>::insert(BCQ(x,y));
+    void insert(Point p){
+        AVLTree<BCQ<Traits>>::insert(BCQ<Traits>(Bridge(p,p),Bridge(p,p)));
     }
 
-    void remove(T x, T y){
-        AVLTree<BCQ<T>>::remove(BCQ(x,y));
+    void remove(Point p){
+        AVLTree<BCQ<Traits>>::remove(BCQ(Bridge(p,p),Bridge(p,p)));
     }
-
+/*
     bool covers(T x, T y){
         auto p = Point(x,y);
         return coversUpper(p) && coversLower(p);
@@ -299,5 +235,6 @@ public:
         if(AVLTree<BCQ<T>>::root) hullPoints(AVLTree<BCQ<T>>::root->val.lh.root,res);
         return res;
     }
+    */
 };
 #endif //DYNAMICCONVEXHULL_CQTREE_H

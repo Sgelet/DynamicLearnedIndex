@@ -10,8 +10,10 @@
 
 using uint = unsigned int;
 
-template<class T>
+template<class T, typename Comparator = std::less<T>>
 class AVLTree{
+    Comparator less;
+
 public:
     struct Node{
         Node *left = nullptr, *right = nullptr, *par = nullptr;
@@ -57,7 +59,7 @@ public:
             onVisit(current);
             parent = current;
             if(isLeaf(current)) break;
-            else if(val < current->right->min) current = current->left;
+            else if(less(val,current->right->min)) current = current->left;
             else current = current->right;
         }
         Node* inserted = new Node(val);
@@ -68,7 +70,7 @@ public:
         }
         Node* sibling = new Node(parent->val);
         sibling->par = parent;
-        if(val < parent->val){
+        if(less(val, parent->val)){
             parent->left = inserted;
             parent->right = sibling;
         } else {
@@ -86,7 +88,7 @@ public:
             onVisit(current);
             parent = current;
             if(isLeaf(current)) break;
-            else if(val < current->right->min) current = current->left;
+            else if(less(val, current->right->min)) current = current->left;
             else current = current->right;
         }
         if(!current || current->val != val) return; // Val not found
@@ -168,7 +170,7 @@ public:
         Node* v = root;
         while(v){
             parent = v;
-            if(v->val < k) v = v->right;
+            if(less(v->val, k)) v = v->right;
             else if(v->val == k) break;
             else v = v->left;
         }
@@ -198,7 +200,7 @@ public:
                 else parent->right = nullptr;
                 current->par = nullptr;
             }
-            if(current->val < k){
+            if(less(current->val, k)){
                 if(current->left) current->left->par = nullptr;
                 temp.root = current->left;
                 temp.join(current,&tl);

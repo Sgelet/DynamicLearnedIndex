@@ -1,78 +1,38 @@
 #ifndef DYNAMICCONVEXHULL_UTIL_H
 #define DYNAMICCONVEXHULL_UTIL_H
 
-template<class T>
-struct Point{
-    T x,y;
+#include <CGAL/enum.h>
 
-    Point(T x, T y):x(x),y(y) {};
-
-    Point() = default;
-
-    constexpr bool operator==(const Point& p){
-        return (x == p.x) && (y == p.y);
-    }
-
-    constexpr bool operator!=(const Point& p){
-        return !(*this == p);
-    }
-
-    constexpr bool operator<(const Point& p){
-        return (x < p.x) || (x == p.x && y < p.y);
-    }
-
-    constexpr bool operator<=(const Point& p){
-        return !(p < *this);
-    }
-};
-
-template<class T>
-struct Bridge{
-    Point<T> a,b;
-
-    Bridge(Point<T> a, Point<T> b): a(a),b(b) {};
-
-    constexpr bool operator==(const Bridge& p){
-        return (a == p.a) && (b == p.b);
-    }
-
-    constexpr bool operator!=(const Bridge& p){
-        return !(*this == p);
-    }
-
-    constexpr bool operator<(const Bridge& p){
-        return (a < p.a);
-    }
-
-    constexpr bool operator<=(const Bridge& p){
-        return !(p < *this);
-    }
-};
-
-
-template<class T>
+template<class Traits>
 struct Bridges{
-    Bridge<T> upper,lower;
+    using Compare = typename Traits::Compare_xy_2;
+    using Bridge = typename Traits::Segment_2;
 
-    Bridges(T x, T y):upper({x,y},{x,y}),lower({x,y},{x,y}){};
+    static constexpr Compare compare = Compare();
 
-    constexpr bool operator==(const Bridges& b){
-        return upper.a == b.upper.a;
+    std::array<Bridge,2> data;
+
+    Bridges(Bridge x, Bridge y):data({x,y}){};
+
+    Bridge& operator[](size_t idx){return data[idx%2];}
+    const Bridge& operator[](size_t idx) const {return data[idx%2];}
+
+    bool operator==(const Bridges& b) const{
+        return (compare(data[0][0],b[0][0]) == CGAL::EQUAL);
     }
 
-    constexpr bool operator!=(const Bridges& b){
+    bool operator!=(const Bridges& b) const{
         return !(*this == b);
     }
-
-    constexpr bool operator<(const Bridges& b){
-        return upper.a < b.upper.a;
+    bool operator<(const Bridges& b) const{
+        return (compare(data[0][0],b[0][0]) == CGAL::SMALLER);
     }
 
-    constexpr bool operator<=(const Bridges& b){
-        return !(b < *this);
+    bool operator<=(const Bridges& b) const{
+        return (compare(data[0][0],b[0][0]) != CGAL::LARGER);
     }
 };
 
-
+;
 
 #endif //DYNAMICCONVEXHULL_UTIL_H
