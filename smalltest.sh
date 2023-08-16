@@ -1,4 +1,5 @@
 mapfile -t files <<< "$(ls -1 /work3/etoga/*.data)"
+#mapfile -t files <<< "$(ls -1 data/*20.data)"
 
 declare -a variations=(
   "CH"
