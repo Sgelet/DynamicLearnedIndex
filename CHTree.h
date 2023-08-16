@@ -28,6 +28,10 @@ const Compare_at_x compare_at_x = Compare_at_x();
 protected:
     // TODO: Degeneracy check
     bool slope_comp(const Bridge& l, const Bridge& r, const bool lower){
+        auto slopel = l[1].x() == l[2].x() ? 0 : (l[1].y()-l[0].y())/(l[1].x()-l[0].x());
+        auto sloper = r[1].x() == r[2].x() ? 0 : (r[1].y()-r[0].y())/(r[1].x()-r[0].x());
+        if(slopel == sloper) return true;
+        else return slopel < sloper != lower;
         CGAL::Comparison_result res = compare_slope(l,r);
         if(res == CGAL::EQUAL) return true;
         return (res == CGAL::SMALLER) != lower;
