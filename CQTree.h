@@ -81,6 +81,11 @@ protected:
         if (res == CGAL::EQUAL) return true;
         return (res == CGAL::SMALLER) == lower;
     }
+    bool cover_comp(const Point& p, const Bridge& b, const bool lower){
+        CGAL::Comparison_result res = compare_at_x(p,b.supporting_line());
+        if(res == CGAL::EQUAL) return true;
+        return (res == CGAL::SMALLER) == lower;
+    }
 
     Bridge findBridge(Node* v, const bool lower){
         HNode* x = v->left->val.hulls[lower].root;
@@ -214,6 +219,19 @@ protected:
         return false;
     }
 */
+
+    bool covers(Point p, const bool lower){
+        auto current = AVLTree<BCQ<Traits>>::root->val.hulls[lower].root;
+        while(current){
+            if(current->val.min().x() <= p.x()){
+                if(p.x() <= current->val.max().x()){
+                    return cover_comp(p,current->val,lower);
+                } else current = current->right;
+            } else current = current->left;
+        }
+        return false;
+    }
+
 public:
     void insert(Point p){
         AVLTree<BCQ<Traits>>::insert(BCQ<Traits>(Bridge(p,p),Bridge(p,p)));
@@ -222,12 +240,12 @@ public:
     void remove(Point p){
         AVLTree<BCQ<Traits>>::remove(BCQ(Bridge(p,p),Bridge(p,p)));
     }
-/*
-    bool covers(T x, T y){
-        auto p = Point(x,y);
-        return coversUpper(p) && coversLower(p);
+
+    bool covers(Point p){
+        return covers(p,0) && covers(p,1);
     }
 
+    /*
     std::vector<std::pair<T,T>> upperHullPoints(){
         std::vector<std::pair<T,T>> res;
         if(AVLTree<BCQ<T>>::root) hullPoints2(AVLTree<BCQ<T>>::root->val.uh.root,res);
