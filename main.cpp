@@ -107,7 +107,7 @@ void runtimeTest(const int test, const int window_size){
 
         for(auto q :queries) {
             if (test == 1) b ^= CH.covers({q.first, q.second});
-            //else if (test == 2) b ^= CQ.covers(q.first, q.second);
+            else if (test == 2) b ^= CQ.covers({q.first, q.second});
         }
 
         t1 = hrc::now();
@@ -119,11 +119,11 @@ void runtimeTest(const int test, const int window_size){
             if(test == 1){
                 if(u.first) CH.remove(data_p2[u.second]);
                 else CH.insert(data_p2[(i+1)*window_size+u.second]);
-            }/*
+            }
             if(test == 2){
-                if(u.first) CQ.remove(data[u.second].first,data[u.second].second);
-                else CQ.insert(data[(i+1)*window_size+u.second].first,data[(i+1)*window_size+u.second].second);
-            }*/
+                if(u.first) CQ.remove(data_p2[u.second]);
+                else CQ.insert(data_p2[(i+1)*window_size+u.second]);
+            }
         }
 
         t1 = hrc::now();
@@ -134,11 +134,11 @@ void runtimeTest(const int test, const int window_size){
             if(test == 1){
                 if(u.first) CH.insert(data_p2[u.second]);
                 else CH.remove(data_p2[(i+1)*window_size+u.second]);
-            }/*
+            }
             if(test == 2){
-                if(u.first) CQ.insert(data[u.second].first,data[u.second].second);
-                else CQ.remove(data[(i+1)*window_size+u.second].first,data[(i+1)*window_size+u.second].second);
-            }*/
+                if(u.first) CQ.insert(data_p2[u.second]);
+                else CQ.remove(data_p2[(i+1)*window_size+u.second]);
+            }
         }
         std::cout<<std::endl;
 

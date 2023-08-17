@@ -238,7 +238,7 @@ public:
     }
 
     void remove(Point p){
-        AVLTree<BCQ<Traits>>::remove(BCQ(Bridge(p,p),Bridge(p,p)));
+        AVLTree<BCQ<Traits>>::remove(BCQ<Traits>(Bridge(p,p),Bridge(p,p)));
     }
 
     bool covers(Point p){
