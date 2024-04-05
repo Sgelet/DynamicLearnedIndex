@@ -1,0 +1,3 @@
+[submodule "page_bearer"]
+	path = page_bearer
+	url = https://github.com/tordstordalen/page_bearer

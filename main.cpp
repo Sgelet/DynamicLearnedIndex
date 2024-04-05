@@ -3,8 +3,8 @@
 #include <chrono>
 #include <cstring>
 #include <cmath>
-#include "CHTree.h"
-#include "CQTree.h"
+#include "ConvexHull/CHTree.h"
+#include "ConvexHull/CQTree.h"
 #include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
 #include <CGAL/convex_hull_2.h>
 #include <CGAL/ch_graham_andrew.h>
