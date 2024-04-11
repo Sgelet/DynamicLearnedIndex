@@ -6,7 +6,6 @@
 #define DYNAMICCONVEXHULL_AVLTREE_H
 
 #include <algorithm>
-#include <iostream>
 
 using uint = unsigned int;
 

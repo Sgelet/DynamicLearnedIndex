@@ -1,7 +1,7 @@
 #ifndef DYNAMICCONVEXHULL_UTIL_H
 #define DYNAMICCONVEXHULL_UTIL_H
 
-#include <CGAL/enum.h>
+/*#include <CGAL/enum.h>
 
 template<class Traits>
 struct Bridges{
@@ -32,7 +32,6 @@ struct Bridges{
         return (compare(data[0][0],b[0][0]) != CGAL::LARGER);
     }
 };
-
-;
+*/
 
 #endif //DYNAMICCONVEXHULL_UTIL_H

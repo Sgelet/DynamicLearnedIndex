@@ -1,12 +1,11 @@
 #include <vector>
 #include <random>
 #include <chrono>
+#include <iostream>
 #include "LearnedIndex.h"
-#include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
-
-typedef CGAL::Exact_predicates_inexact_constructions_kernel K;
 
 using hrc = std::chrono::high_resolution_clock;
+
 void runtimeTest(uint size){
     // Read data
     std::mt19937 engine(42);
@@ -18,13 +17,13 @@ void runtimeTest(uint size){
 
     std::shuffle(data.begin(),data.end(),engine);
 
-    auto index = LearnedIndex<K,uint,64>();
+    auto index = LearnedIndex<uint,64>();
 
     std::cout << "Inserting"<<std::endl;
 
     auto t0 = hrc::now();
     volatile bool b;
-    for(unsigned int i : data){
+    for(uint i : data){
         b = index.insert(i);
     }
     auto t1 = hrc::now();
@@ -45,9 +44,9 @@ void runtimeTest(uint size){
         t1 = hrc::now();
         acc += t1 - t0;
     }
-     */
+    */
 }
 
 int main(int argc, char* argv[]){
-    runtimeTest(400000u);
+    runtimeTest(10000000u);
 }
