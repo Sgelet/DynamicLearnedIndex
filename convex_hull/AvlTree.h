@@ -18,11 +18,11 @@ public:
         Node *left = nullptr, *right = nullptr, *par = nullptr;
         uint size = 1;
         int height = 1;
-        T val, min, max;
+        T val;
+        T* min = &val,* max = &val;
 
-        Node() = default;
+        explicit Node(T v) : val(v) {};
 
-        explicit Node(T v) : val(v),min(v),max(v) {};
 
         // Deletion of entire subtree
         ~Node(){
@@ -51,68 +51,77 @@ public:
         delete root;
     }
 
-    void insert(T val){
-        Node* parent = nullptr;
+    Node* find(const T& val){
         Node* current = root;
-        while(current){
+        while(current && !isLeaf(current)){
             onVisit(current);
-            parent = current;
-            if(isLeaf(current)) break;
-            else if(less(val,current->right->min)) current = current->left;
+            if(less(val,*(current->right->min))) current = current->left;
             else current = current->right;
         }
-        Node* inserted = new Node(val);
-        inserted->par = parent;
-        if(!parent){
-            root = inserted;
-            return;
-        }
-        Node* sibling = new Node(parent->val);
-        sibling->par = parent;
-        if(less(val, parent->val)){
-            parent->left = inserted;
-            parent->right = sibling;
-        } else {
-            parent->right = inserted;
-            parent->left = sibling;
-        }
-
-        retrace(parent, true, false);
+        return current;
     }
 
-    void remove(T val){
-        Node* parent;
-        Node* current = root;
-        while(current){
-            onVisit(current);
-            parent = current;
-            if(isLeaf(current)) break;
-            else if(less(val, current->right->min)) current = current->left;
-            else current = current->right;
+    Node* insert(T val, Node* leaf){
+        Node* inserted = new Node(val);
+        if(!leaf){
+            root = inserted;
+            return inserted;
         }
-        if(!current || current->val != val) return; // Val not found
-        if(current == root){
-            delete current;
+        Node* parent = new Node(val);
+        if(leaf->par){
+            if(isLeftChild(leaf)) leaf->par->makeLeftChild(parent);
+            else leaf->par->makeRightChild(parent);
+        } else {
+            root = parent;
+        }
+        inserted->par = parent;
+        leaf->par = parent;
+        if(less(val, leaf->val)){
+            parent->left = inserted;
+            parent->right = leaf;
+        } else {
+            parent->right = inserted;
+            parent->left = leaf;
+        }
+
+        retrace(parent, true);
+        return inserted;
+    }
+
+    void insert(T val){
+        insert(val,find(val));
+    }
+
+    void remove(Node* leaf){
+        if(!leaf) return;
+        if(leaf == root){
+            delete leaf;
             root = nullptr;
             return;
         }
-        current = parent;
-        parent = parent->par;
+
+        Node* parent = leaf->par;
         Node* sibling;
-        if(isLeftChild(current)) sibling = parent->right;
+        if(isLeftChild(leaf)) sibling = parent->right;
         else sibling = parent->left;
         sibling->par = parent->par;
         if(!parent->par) root = sibling;
         else if(isLeftChild(parent)) parent->par->left = sibling;
         else parent->par->right = sibling;
 
-        current->left = current->right = nullptr;
-        delete current;
+        leaf->left = leaf->right = nullptr;
+        delete leaf;
         parent->left = parent->right = nullptr;
         delete parent;
 
         onVisit(sibling);
-        retrace(sibling, false, false);
+        retrace(sibling, false);
+    }
+
+    void remove(T val){
+        Node* current = find(val);
+        if(!current || current->val != val) return; // Val not found
+        remove(current);
     }
 
     void join(T k, AVLTree* r){
@@ -147,18 +156,16 @@ public:
         r->root = nullptr;
     }
 
-        void join(AVLTree* r){
+    void join(AVLTree* r){
         Node* current = root;
         if(!current){
             root = r->root;
             r->root = nullptr;
             return;
         } else if(!r->root) return;
-        while(current->right) current = current->right;
-        T temp = current->val;
-        split(current->val, nullptr);
+        T temp = *(current->max);
+        split(temp, nullptr);
         join(temp,r);
-
     }
 
     // Split s.t. l < k and r > k
@@ -199,7 +206,7 @@ public:
                 else parent->right = nullptr;
                 current->par = nullptr;
             }
-            if(less(current->val, k)){
+            if(less((*(current->right->min)), k)){
                 if(current->left) current->left->par = nullptr;
                 temp.root = current->left;
                 temp.join(current,&tl);
@@ -219,6 +226,8 @@ public:
         tl.root = nullptr;
     }
 
+
+
 protected:
 
     void joinRight(Node* tl, Node* x, Node* tr){
@@ -226,14 +235,14 @@ protected:
         if(tl && tl->par) tl->par->makeRightChild(x);
         x->makeLeftChild(tl);
         x->makeRightChild(tr);
-        retrace(x,true, true);
+        retrace(x, true);
     }
     void joinLeft(Node* tl, Node* x, Node* tr){
         while(tr->left && height(tr) > height(tl) + 1) tr = tr->left;
         if(tr && tr->par) tr->par->makeLeftChild(x);
         x->makeLeftChild(tl);
         x->makeRightChild(tr);
-        retrace(x,true, true);
+        retrace(x, true);
     }
 
     void rotateR(Node* x){
@@ -285,8 +294,7 @@ protected:
         }
     }
 
-    void retrace(Node* x, const bool insertion, const bool earlyExit){
-        bool balance = true;
+    void retrace(Node *x, const bool insertion, bool balance = true) {
         int dif;
 
         for(auto current = x; current; current = current->par){
@@ -315,9 +323,9 @@ protected:
         x->size = size(x->left) + size(x->right) + isLeaf(x);
         x->height = std::max(height(x->left), height(x->right)) + 1;
         if(x->left) x->min = x->left->min;
-        else x->min = x->val;
+        else x->min = &(x->val);
         if(x->right) x->max = x->right->max;
-        else x->max = x->val;
+        else x->max = &(x->val);
         onUpdate(x);
     }
 

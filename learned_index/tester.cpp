@@ -6,29 +6,36 @@
 
 using hrc = std::chrono::high_resolution_clock;
 
-void runtimeTest(uint size){
+void runtimeTest(uint elements, uint lines){
     // Read data
     std::mt19937 engine(42);
-    std::vector<uint> data;
-    data.reserve(size);
-    for(uint i = 1; i<size; ++i){
-        data.push_back(i);
+    std::vector<int> data;
+    data.reserve(elements*lines);
+    int base = 8;
+    for(int k = 0; k<lines; ++k){
+        for(int i=1; i<=elements; ++i) {
+            data.push_back((k*elements*512)+i*base);
+        }
+        base *= 2;
     }
 
     std::shuffle(data.begin(),data.end(),engine);
 
-    auto index = LearnedIndex<uint,64>();
+    auto index = LearnedIndex<int>();
 
     std::cout << "Inserting"<<std::endl;
 
     auto t0 = hrc::now();
     volatile bool b;
-    for(uint i : data){
+    int count = 0;
+    for(int i : data){
+        count++;
+        std::cout << count << " ";
         b = index.insert(i);
     }
     auto t1 = hrc::now();
 
-    std::cout << "Insertion done after "<< (t1 - t0).count() * 1e-9 << "s and b is " << b << std::endl;
+    //std::cout << "Insertion done after "<< (t1 - t0).count() * 1e-9 << "s and b is " << b << std::endl;
     /*
     std::shuffle(data.begin(),data.end(),engine);
 
@@ -48,5 +55,5 @@ void runtimeTest(uint size){
 }
 
 int main(int argc, char* argv[]){
-    runtimeTest(10000000u);
+    runtimeTest(1000,6);
 }

@@ -7,32 +7,39 @@
 
 #include <vector>
 #include <CGAL/enum.h>
+#include <queue>
 #include "AvlTree.h"
 #include "../util.h"
 #define isLeaf this->isLeaf
 
 
 template<class Traits, int epsilon>
-class CHTree : AVLTree<Bridges<Traits>>{
+class CHTree : AVLTree<CBridges<Traits>>{
 using Bridge = typename Traits::Segment_2;
 using Line = typename Traits::Line_2;
 using Point = typename Traits::Point_2;
-using Node = typename AVLTree<Bridges<Traits>>::Node;
+using Node = typename AVLTree<CBridges<Traits>>::Node;
 using Midpoint = typename Traits::Construct_midpoint_2;
 using Compare_slope = typename Traits::Compare_slope_2;
 using Compare_at_x = typename Traits::Compare_y_at_x_2;
-using Left_turn = typename Traits::Left_turn_2;
+using Orientation = typename Traits::Orientation_2;
 
-const Midpoint midpoint = Midpoint();
-const Compare_slope compare_slope = Compare_slope();
-const Compare_at_x compare_at_x = Compare_at_x();
-const Left_turn left_turn = Left_turn();
+static constexpr Midpoint midpoint = Midpoint();
+static constexpr Compare_slope compare_slope = Compare_slope();
+static constexpr Compare_at_x compare_at_x = Compare_at_x();
+static constexpr Orientation orientation = Orientation();
 
 protected:
     bool slope_comp(const Bridge& l, const Bridge& r, const bool lower){
         CGAL::Comparison_result res = compare_slope(l,r);
         if(res == CGAL::EQUAL) return true;
         return (res == CGAL::SMALLER) != lower;
+    }
+
+    bool direction_comp(const Bridge& l, const Bridge& r, bool& parallel){
+        CGAL::Comparison_result res = compare_slope(l,r);
+        parallel = res == CGAL::EQUAL;
+        return res == CGAL::SMALLER;
     }
 
     // TODO: Naming probably shouldnt overlap like this
@@ -51,9 +58,23 @@ protected:
     }
 
     bool cover_comp(const Point& p, const Bridge& b, const bool lower){
-        CGAL::Comparison_result res = compare_at_x(p,b.supporting_line());
-        if(res == CGAL::EQUAL) return true;
-        return (res == CGAL::SMALLER) == lower;
+        if(lower) return !right_turn(b.min(),b.max(),p);
+        else return !left_turn(b.min(),b.max(),p);
+    }
+
+    bool strict_cover_comp(const Point& p, const Bridge& b, const bool lower){
+        if(lower) return left_turn(b.min(),b.max(),p);
+        else return right_turn(b.min(),b.max(),p);
+    }
+
+    inline
+    bool left_turn(const Point& p, const Point& q, const Point& r){
+        return orientation(p,q,r) == CGAL::LEFT_TURN;
+    }
+
+    inline
+    bool right_turn(const Point&p, const Point& q, const Point& r){
+        return orientation(p,q,r) == CGAL::RIGHT_TURN;
     }
 
     Bridge findBridge(Node* v, const bool lower){
@@ -62,7 +83,7 @@ protected:
         Bridge e_l, e_r, lr;
         bool undecided;
 
-        Point m = midpoint(x->max[lower].max(),y->min[lower].min());
+        Point m = midpoint((*(x->max))[lower].max(),(*(y->min))[lower].min());
 
         while (!(isLeaf(x) && isLeaf(y))) {
             undecided = true;
@@ -70,10 +91,10 @@ protected:
             e_r = y->val[lower];
             lr = Bridge(midpoint(e_l),midpoint(e_r));
             if (!isLeaf(x) && slope_comp(e_l,lr,lower)){
-                x = stepLeft(x,lower); undecided = false;
+                stepLeft(x,lower); undecided = false;
             }
             if (!isLeaf(y) && slope_comp(lr,e_r,lower)) {
-                y = stepRight(y,lower); undecided = false;
+                stepRight(y,lower); undecided = false;
             }
             if (undecided) {
                 if (!isLeaf(x) && m_comp(e_l,e_r,m,lower) || isLeaf(y)) {
@@ -93,24 +114,57 @@ protected:
     }
 
     inline
-    Node* stepLeft(Node* v, const bool lower){
-        auto x = v->val[lower].min().x();
-        v = v->left;
-        while(v && v->val[lower].max().x() > x) v = v->left;
-        return v;
-    }
-    inline
-    Node* stepRight(Node* v, const bool lower){
-        auto x = v->val[lower].max().x();
-        v = v->right;
-        while(v && v->val[lower].min().x() < x) v = v->right;
+    Node* stepUp(Node* v, const bool lower){
+        auto min = v->val[lower].min().x();
+        auto max = v->val[lower].max().x();
+        v = v->par;
+        while(v && v->val[lower].min() < min && max < v->val[lower].max()) v = v->par;
         return v;
     }
 
+    inline
+    auto stepLeft(Node*& v, const bool& lower){
+        auto x = v->val[lower].min();
+        v = v->left;
+        while(v && v->val[lower].max().x() > x.x()) v = v->left;
+        return x;
+    }
+    inline
+    auto stepRight(Node*& v, const bool& lower){
+        auto x = v->val[lower].max();
+        v = v->right;
+        while(v && v->val[lower].min().x() < x.x()) v = v->right;
+        return x;
+    }
+
+    auto stepLeftHull(Node*& v, const Point& bound, const bool& lower){
+        Node* t = nullptr;
+        auto x = v->val[lower].min();
+        v = v->left;
+
+        while(v != t) {
+            t = v;
+            while (v && v->val[lower].max().x() > x.x()) v = v->left;
+            while (v && v->val[lower].min().x() < bound.x()) v = v->right;
+        }
+        return x;
+    }
+    auto stepRightHull(Node*& v, const Point& bound, const bool& lower){
+        Node* t = nullptr;
+        auto x = v->val[lower].max();
+        v = v->right;
+
+        while(v != t) {
+            t = v;
+            while (v && v->val[lower].min().x() < x.x()) v = v->right;
+            while (v && v->val[lower].max().x() > bound.x()) v = v->left;
+        }
+        return x;
+    }
 
     // TODO: Inteded not to use stepRight/Left?
     Node* find(const Point key, const bool left, const bool lower){
-        auto current = AVLTree<Bridges<Traits>>::root;
+        auto current = AVLTree<CBridges<Traits>>::root;
         while(current && !isLeaf(current)){
             if(current->val[lower][!left] == key) return current;
             else if (current->val[lower].min().x() < key.x()) current = current->right;
@@ -120,13 +174,16 @@ protected:
     }
 
     Node* hullSuccessor(const Point key, const bool lower){
-        auto current = AVLTree<Bridges<Traits>>::root;
+        auto current = AVLTree<CBridges<Traits>>::root;
         Point min;
         while(current){
             min = current->val[lower].min();
             if(min == key) break;
-            else if (min < key) current = stepRight(current,lower);
-            else current = stepLeft(current,lower);
+            else if (min < key) stepRight(current,lower);
+            else stepLeft(current,lower);
+        }
+        if(!current){
+            std::cout << key.x() << "," << key.y() << std::endl;
         }
         return current;
     }
@@ -135,13 +192,13 @@ protected:
         return hullSuccessor(p->val[lower].max(), lower);
     }
     Node* hullPredecessor(const Point key, const bool lower){
-        auto current = AVLTree<Bridges<Traits>>::root;
+        auto current = AVLTree<CBridges<Traits>>::root;
         Point max;
         while(current){
             max = current->val[lower].max();
             if(max == key) break;
-            else if (max < key) current = stepRight(current,lower);
-            else current = stepLeft(current,lower);
+            else if (max < key) stepRight(current,lower);
+            else stepLeft(current,lower);
         }
         return current;
     }
@@ -162,17 +219,28 @@ protected:
      */
 
     bool covers(Point p, const bool lower){
-        auto current = AVLTree<Bridges<Traits>>::root;
+        auto current = AVLTree<CBridges<Traits>>::root;
         while(current){
             if(current->val[lower].min() <= p){
                 if(p <= current->val[lower].max()){
                     return cover_comp(p,current->val[lower],lower);
-                } else current = stepRight(current,lower);
-            } else current = stepLeft(current,lower);
+                } else stepRight(current,lower);
+            } else stepLeft(current,lower);
         }
         return false;
     }
 
+    bool strict_covers(Point p, const bool lower){
+        auto current = AVLTree<CBridges<Traits>>::root;
+        while(current){
+            if(current->val[lower].min() <= p){
+                if(p <= current->val[lower].max()){
+                    return strict_cover_comp(p,current->val[lower],lower);
+                } else stepRight(current,lower);
+            } else stepLeft(current,lower);
+        }
+        return false;
+    }
     /*
     bool coversLower(Point<T> p){
         auto current = AVLTree<Bridges<T>>::root;
@@ -192,13 +260,13 @@ protected:
 
     std::vector<Point> hullPoints(const bool lower){
         std::vector<Point> res;
-        Node* e = AVLTree<Bridges<Traits>>::root;
+        Node* e = AVLTree<CBridges<Traits>>::root;
         if(!e || isLeaf(e)) return res;
         while(e){
             res.insert(res.begin(), e->val[lower].min());
             e = find(res.front(),false,lower);
         }
-        e = AVLTree<Bridges<Traits>>::root;
+        e = AVLTree<CBridges<Traits>>::root;
         while(e){
             res.push_back(e->val[lower].max());
             e = find(res.back(),true,lower);
@@ -214,7 +282,7 @@ protected:
     // Return the dual of the input
     inline
     Line dual(const Point& p, const int& offset){
-        return Line(p.hx(),-p.hw(),-p.hy()-offset);
+        return Line(p.hx(),-1/p.hw(),-p.hy()-offset/p.hw());
     }
 
     inline
@@ -233,11 +301,11 @@ protected:
 
 public:
     void insert(Point p){
-        AVLTree<Bridges<Traits>>::insert({Bridge(p,p),Bridge(p,p)});
+        AVLTree<CBridges<Traits>>::insert({Bridge(p,p),Bridge(p,p)});
     }
 
     void remove(Point p){
-        AVLTree<Bridges<Traits>>::remove({Bridge(p,p),Bridge(p,p)});
+        AVLTree<CBridges<Traits>>::remove({Bridge(p,p),Bridge(p,p)});
     }
 
     bool covers(Point p){
@@ -270,87 +338,302 @@ public:
     }
      */
 
+    inline
+    Bridge shift(const Bridge& b,const int offset){
+        return Bridge{shift(b.min(),offset),shift(b.max(),offset)};
+    }
+
+    inline
+    Point shift(const Point& p, const int ox, const int oy){
+        return Point(p.x()+ox,p.y()+oy);
+    }
+
+    inline
+    Point shift(const Point& p,const int offset){
+        return Point(p.x(),p.y()+offset);
+    }
+
+    bool verifyNoLine(const Node* v){
+        if(isLeaf(v)) return strict_covers(shift(v->val[1].min(),epsilon + epsilon),0) || strict_covers(shift(v->val[0].min(),-2*epsilon),1);
+        return verifyNoLine(v->left) || verifyNoLine(v->right);
+    }
+
+    bool verifyNoLine(){
+        return verifyNoLine(this->root);
+    }
+
+
+    bool verifyNoLineIter(){
+        Node* x;
+        std::queue<Node*> q;
+        for(q.push(this->root);!q.empty();q.pop()){
+            x = q.front();
+            if(!isLeaf(x)) {
+                if(x->left) q.push(x->left);
+                if(x->right) q.push(x->right);
+                continue;
+            }
+            if(strict_covers(shift(x->val[1].min(),2*epsilon),0)) return true;
+            if(strict_covers(shift(x->val[0].min(),-2*epsilon),1)) return true;
+        }
+
+        return false;
+    }
+
+    bool verifyLine(const Bridge& b){
+        Node* x;
+        std::queue<Node*> q;
+        for(q.push(this->root);!q.empty();q.pop()){
+            x = q.front();
+            if(!isLeaf(x)) {
+                if(x->left) q.push(x->left);
+                if(x->right) q.push(x->right);
+                continue;
+            }
+            if(right_turn(b.min(),b.max(), shift(x->val[0].min(),epsilon))) return false;
+            if(left_turn(b.min(),b.max(), shift(x->val[0].min(),-epsilon))) return false;
+            //if(cover_comp(shift(x->val[1].min(),epsilon),b,false)) return false;
+        }
+
+        return true;
+    }
+
+    template<bool uwedge>
+    bool findWitness(){
+
+    }
+
+    // 0 is avoids
+    // -1 left
+    // 1 right
+    int witnessCheck(const Point& b1, const Point& b2, const Point& a1, const Point& a2, const Point& a3, const bool& uwedge){
+        const bool qr = left_turn(a1,a2,b2);
+        const bool ql = left_turn(a2,a3,b1);
+
+        if(qr && ql){
+            return 0;
+        }
+        if(ql){
+            if(right_turn(b1,b2,a2)){
+                if(uwedge) return 1;
+                else return -1;
+            } else if(!slope_comp(Bridge(a1,a2),Bridge(b1,b2),false)){
+                if(uwedge) return -1;
+                else return 1;
+            }
+            return 0;
+        }
+        if(qr){
+            if(right_turn(b1,b2,a2)){
+                if(uwedge) return -1;
+                else return 1;
+            } else if(!slope_comp(Bridge(b1,b2),Bridge(a2,a3),false)){
+                if(uwedge) return 1;
+                else return -1;
+            }
+            return 0;
+        }
+
+        // Decide if stepping left or right depending on slope?
+        if(!slope_comp(Bridge(a1,a2),Bridge(b1,b2),false)){
+            if(uwedge) return -1;
+            else return 1;
+        } else if(!slope_comp(Bridge(b1,b2),Bridge(a2,a3),false)){
+            if(uwedge) return 1;
+            else return -1;
+        }else {
+            return 0;
+        }
+    }
+
     // Computes a line that intersects all segments
     // Returns true if successful, storing such a line in the parameter
     // Returns false if unsuccessful, will not modify line in this case
-    bool findLine(Line& result){
-        Node* x = AVLTree<Bridges<Traits>>::root; // Upper bridge - lower envelope in dual
-        Node* y = AVLTree<Bridges<Traits>>::root; // Lower bridge - upper envelope in dual
-        Node* x_succ, * y_pred;
-        Line u,l;
-        Point ul,ur,ll,lr;
-        bool ul_in_l,ur_in_l,ll_in_u,lr_in_u; // Upper Left below L, ... , Lower Left above U, ...
-        bool seekLeft, parallel;
-        while(x && y && !isLeaf(x) && !isLeaf(y)){ // TODO: Only update moved segments
-            // Get predecessors
-            x_succ = hullSuccessor(x,0);
-            y_pred = hullPredecessor(y,1);
+    bool findLine(Bridge& res) {
+        Node *x = this->root; // Upper bridge - lower chain
+        Node *y = this->root; // Lower bridge - upper chain
+        Bridge u, l; // Segments on upper/lower chain
+        bool ul_in_l, ur_in_l, ll_in_u, lr_in_u; // Upper Left below L, ... , Lower Left above U, ...
+        bool seekLeft, parallel; // Decision variables
+        bool dirty_x = true, dirty_y = true; // Update variables
+        auto uub = x->max->data[1].max();
+        auto ulb = x->min->data[1].min();
+        auto lub = y->max->data[0].max();
+        auto llb = y->min->data[0].min();
 
-            // Get the line segment on lower envelope in dual
-            u = dual(x->val[0].max(),-epsilon);
-            l = dual(y->val[1].min(),epsilon);
+        while (uub != ulb && lub != llb) { // TODO: Only update moved segments
+            // Get the line segment
+            if (dirty_x) u = shift(x->val[1], epsilon);
+            if (dirty_y) l = shift(y->val[0], -epsilon);
+
+            // Reset
+            dirty_x = false;
+            dirty_y = false;
 
             // Determine direction of (possible) intersection
-            seekLeft = slope_comp(u,l,parallel);
-
-            if(parallel){
-                //if(!ul_in_l && !ur_in_l) return false; // U and L are parallel separating lines - might never happen in rank-space
-                //result = Line(x->val[0].min(),y->val[1].min()); // U and L are parallel boundaries of the shared area
-                result = x->val[0].supporting_line();
-                return true;
-            }
-
-            // Unbounded rays towards right
-            if(isLeaf(x) && isLeaf(y)){
-                if(seekLeft) return false;
-                result = Line(x->val[0].max(),y->val[1].min());
-                return true;
-            }
-
-            // Evaluate left endpoints
-            if(!isLeaf(x_succ)){
-                ur = dual(x->val[0].supporting_line(),-epsilon);
-                ul = dual(x_succ->val[0].supporting_line(),-epsilon);
-            } else {
-                ul = Point(0,u.c(),-u.b()); // Lack of predecessor should be intersection with y-axis)
-                ur = dual(x->val[0].supporting_line(),-epsilon);
-            }
-            if(!isLeaf(y_pred)){
-                lr = dual(y->val[1].supporting_line(),epsilon);
-                ll = dual(y_pred->val[1].supporting_line(),epsilon);
-            } else{
-                ll = Point(0,l.c(),-u.b());
-                lr = dual(y->val[1].supporting_line(),epsilon);
-            }
+            seekLeft = direction_comp(l, u, parallel);
 
             // Determine regions
-            ul_in_l = left_turn(ll,lr,ul);
-            ur_in_l = left_turn(ll,lr,ur);
-            ll_in_u = !left_turn(ul,ur,ll);
-            lr_in_u = !left_turn(ul,ur,lr);
+            ul_in_l = right_turn(l.min(), l.max(), u.min());
+            ur_in_l = right_turn(l.min(), l.max(), u.max());
+            ll_in_u = left_turn(u.min(), u.max(), l.min());
+            lr_in_u = left_turn(u.min(), u.max(), l.max());
 
-            if(ul_in_l != ur_in_l && ll_in_u != lr_in_u) { // Line segments intersect
-                result = Line(dual(u,0),dual(l,0)); // TODO: Orientation of the line may be flipped?
-                return true;
+            if (parallel) { // Either witness or multiple stepping
+                if (!ur_in_l) { // u and l are both witnesses
+                    res = Bridge(u.min(), u.max());
+                    return true;
+                }
+
+                if (l.max().x() < u.min().x()) { // l lies left of u
+                    uub = stepLeftHull(x, ulb, 1);
+                    llb = stepRightHull(y, lub, 0);
+                } else if (l.min().x() > u.max().x()) { // l lies right of u
+                    ulb = stepRightHull(x, uub, 1);
+                    lub = stepLeftHull(y, llb, 0);
+                } else { // l and u overlap - existence of intersection follows
+                    return false;
+                }
+                dirty_x = true;
+                dirty_y = true;
+                continue;
+            } else if (ul_in_l != ur_in_l && ll_in_u != lr_in_u) { // Line segments intersect
+                return false;
             }
 
-            if(seekLeft){ // If slope of L strictly less than U then intersection region is left
-                if(!ul_in_l) x = stepRight(x,0); // Case 1
-                if(!ll_in_u) y = stepLeft(y,1); // Case 2
-                if(ul_in_l && ll_in_u) { // Case 3
-                    if(ur.x() > lr.x()) x = stepRight(x,0);
-                    else y = stepLeft(y,1);
+            if (seekLeft) { // If slope of l strictly less than u then intersection region is left
+                if (!ul_in_l) { // Case 1: u is free to move
+                    uub = stepLeftHull(x, ulb, 1);
+                    dirty_x = true;
+                }
+                if (!ll_in_u) { // Case 2: l is free to move
+                    lub = stepLeftHull(y, llb, 0);
+                    dirty_y = true;
+                }
+                if (ul_in_l && ll_in_u) { // Case 3: step rightmost to left
+                    if(l.min().x() > u.max().x()){ // l lies right of u
+                        lub = stepLeftHull(y, llb, 0);
+                        dirty_y = true;
+                    } else if(l.max().x() < u.min().x()){ // u lies right of l
+                        uub = stepLeftHull(x, ulb, 1);
+                        dirty_x = true;
+                    } else { // overlap is evidence of intersection
+                        return false;
+                    }
                 }
             } else {
-                if(!ur_in_l) x = stepLeft(x,0);
-                if(!lr_in_u) y = stepRight(y,1);
-                if(ur_in_l && lr_in_u){
-                    if(ul.x() < ll.x()) x = stepLeft(x,0);
-                    else y = stepRight(y,1);
+                if (!ur_in_l) {
+                    ulb = stepRightHull(x, uub, 1);
+                    dirty_x = true;
+                }
+                if (!lr_in_u) {
+                    llb = stepRightHull(y, lub, 0);
+                    dirty_y = true;
+                }
+                if (ur_in_l && lr_in_u) { // step leftmost to right
+                    if(l.max().x() < u.min().x()){ // l lies left of u
+                        llb = stepRightHull(y, lub, 0);
+                        dirty_y = true;
+                    } else if(l.min().x() > u.max().x()){ // u lies left of l
+                        uub = stepRightHull(x, ulb, 1);
+                        dirty_x = true;
+                    } else { // overlap is evidence of intersection
+                        return false;
+                    }
                 }
             }
         }
-        return false;
+
+        // No intersection found, search for witness
+        const bool uwedge = ulb == uub;
+        int direction;
+        auto a2 = uwedge ? ulb : llb;
+        auto a1 = hullPredecessor(a2,uwedge)->val[uwedge].min();
+        auto a3 = hullSuccessor(a2,uwedge)->val[uwedge].max();
+        auto b1 = u.min(); // Unnecessary assigns
+        auto b2 = u.max();
+
+        if(a1 == a2){
+            res = shift(Bridge(a2,a3), uwedge ? epsilon : -epsilon);
+            return true;
+        } else if (a2 == a3){
+            res = shift(Bridge(a1,a2), uwedge ? epsilon : -epsilon);
+            return true;
+        }
+
+        if(!uwedge){
+            std::swap(a1,a3); // relabel pre/succ for symmetry
+        }
+
+        if(uwedge) x = y; //this->root;
+        if(uwedge) ulb = llb;
+        if(uwedge) uub = lub;
+
+        // {1, 2, 3, 5, 6, 7, 9, 11, 12, 13, 14}
+        while(ulb != uub){ // Double-stepping into wedge still can cause issues - see the data in comment above
+            u = shift(x->val[!uwedge], uwedge ? -2*epsilon : 2*epsilon);
+            b1 = u.min();
+            b2 = u.max();
+
+            if(!uwedge) std::swap(b1,b2);
+
+            direction = witnessCheck(b1,b2,a1,a2,a3,uwedge);
+
+            if(direction < 0){
+                uub = stepLeftHull(x, ulb, !uwedge);
+            } else if (direction > 0){
+                ulb = stepRightHull(x, uub, !uwedge);
+            } else {
+                res = shift(x->val[!uwedge], uwedge ? -epsilon : epsilon);
+                return true;
+            }
+
+            // Avoiding slopes seem somehow plausible, but this generates counterexamples
+            /*
+            if(uwedge) std::swap(b1,b2);
+
+            if(right_turn(b1,b2,a3)) ulb = stepRight(x,!uwedge);
+            else if(left_turn(b2,b1,a1)) uub = stepLeft(x,!uwedge);
+            else {
+                res = shift(x->val[!uwedge], uwedge ? -epsilon : epsilon);
+                return true;
+            }*/
+        }
+
+        if(!uwedge){
+            std::swap(a1,a3); // relabel pre/succ for symmetry
+        }
+
+        // Double wedge scenario
+        a1 = shift(a1, uwedge ? epsilon : -epsilon);
+        a2 = shift(a2, uwedge ? epsilon : -epsilon);
+        a3 = shift(a3, uwedge ? epsilon : -epsilon);
+
+        b2 = shift(uub, uwedge ? -epsilon : epsilon);
+        b1 = shift(hullPredecessor(uub,!uwedge)->val[!uwedge].min(), uwedge ? -epsilon : epsilon);
+        auto b3 = shift(hullSuccessor(uub,!uwedge)->val[!uwedge].max(), uwedge ? -epsilon : epsilon);
+
+        if(b1 == b2){
+            res = Bridge(b2,b3);
+            return true;
+        } else if (b2 == b3){
+            res = Bridge(b1,b2);
+            return true;
+        }
+
+        if(!uwedge){ // Enforce a on u and b on l
+            std::swap(a1,b1);
+            std::swap(a2,b2);
+            std::swap(a3,b3);
+        }
+
+        if(witnessCheck(a2,a1,b3,b2,b1,false) == 0) res = Bridge(a1,a2);
+        else if(witnessCheck(a3,a2,b3,b2,b1,false) == 0) res = Bridge(a2,a3);
+        else if(witnessCheck(b1,b2,a1,a2,a3,true) == 0) res = Bridge(b1,b2);
+        else res = Bridge(b2,b3);
+
+        //std::cout << "we wedging and edging" << std::endl;
+        return true;
     }
 };
 #endif //DYNAMICCONVEXHULL_CHTREE_H
