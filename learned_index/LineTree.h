@@ -147,7 +147,7 @@ public:
 
         Node* l = current,* r = current;
         Hull* lhull = nullptr, *rhull= nullptr;
-        bool ljoined, lone = false, between = false, dirty_l = false, dirty_r = false;
+        bool ljoined = false, lone = false, between = false, dirty_l = false, dirty_r = false;
         if(current) { // Insertion into existing segment
             dirty_l = true;
             dirty_r = true;
