@@ -21,39 +21,50 @@ void runtimeTest(uint elements, uint lines){
 
     std::shuffle(data.begin(),data.end(),engine);
 
-    auto index = LearnedIndex<int>();
+    int count = 0;
+    auto index = LearnedIndex<int64_t>();
 
     std::cout << "Inserting"<<std::endl;
 
     auto t0 = hrc::now();
-    volatile bool b;
-    int count = 0;
     for(int i : data){
         count++;
-        std::cout << count << " ";
-        b = index.insert(i);
+
+        index.insert(i);
+        for(int j=0; j<count; ++j){
+            if(!index.find(data[j])){
+                std::cout << "cannot find recently inserted" << std::endl;
+            }
+        }
+        index.verify();
     }
     auto t1 = hrc::now();
 
-    //std::cout << "Insertion done after "<< (t1 - t0).count() * 1e-9 << "s and b is " << b << std::endl;
-    /*
+    std::cout << "Insertion done after "<< (t1 - t0).count() * 1e-9 << std::endl;
+
     std::shuffle(data.begin(),data.end(),engine);
+    count = 0;
+
+    std::cout << "Removing"<<std::endl;
 
     t0 = hrc::now();
-    t1 = hrc::now();
-    acc = t1 - t0;
-    std::cout << "Removing"<<std::endl;
-    for(size_t i=0; i<data.size()/window_size; i++) {
-        t0 = hrc::now();
-        for (size_t j = i * window_size; j < (i + 1) * window_size; j++) {
-            CH.remove(data[j].first, data[j].second);
+    for(int i: data) {
+        count++;
+
+        index.remove(i);
+
+        for(int j=count; j<data.size(); ++j){
+            if(!index.find(data[j])){
+                std::cout << "cannot find old inserted " << data[j] << std::endl;
+            }
         }
-        t1 = hrc::now();
-        acc += t1 - t0;
+
+        index.verify();
     }
-    */
+    t1 = hrc::now();
+    std::cout << "Removal done after "<< (t1 - t0).count() * 1e-9 << std::endl;
 }
 
 int main(int argc, char* argv[]){
-    runtimeTest(1000,6);
+    runtimeTest(10000,2);
 }

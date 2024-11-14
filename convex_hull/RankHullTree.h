@@ -163,7 +163,6 @@ struct Segment{
     inline
     Point<AT> midpoint() const {
         return eval(AT(l.x)+(AT(r.x)-AT(l.x)) * AT(1)/AT(2));
-        //return Point(l.x+Quotient<T>(1,2),l.y + slope * Quotient<T>(1,2));
     }
 };
 
@@ -223,7 +222,6 @@ protected:
         if(l.slope == AT(0)) return lower;
         if(r.slope == AT(0)) return !lower;
         Point<AT> lm = l.eval(q);
-        //Quotient rm = lm.y+r.slope()*(r.l.x-q);
         Point<AT> rm = r.eval(q);
         if(lm.y== rm.y) return true;
         return (lm.y < rm.y) == lower;
@@ -353,19 +351,6 @@ protected:
         return x;
     }
 
-    /*
-    // TODO: Inteded not to use stepRight/Left?
-    template<bool left, bool lower>
-    Node* find(const NT key){
-        Node* current = this->root;
-        while(current && !isLeaf(current)){
-            if(current->val[lower][!left] == key) return current;
-            else if (current->val[lower].l < key) stepRight<lower>(current);
-            else stepLeft<lower>(current);
-        }
-        return nullptr;
-    }
-    */
     template<bool lower>
     Node* hullSuccessor(const NT& key){
         Node* current = AVL::root;
@@ -435,18 +420,6 @@ protected:
         return Segment(current->val[lower],v, lower ? epsilon : -epsilon);
     }
 
-    /*
-    Node* findLower(Point<T> key, bool left){
-        auto current = AVLTree<Bridges<T>>::root;
-        while(current && !isLeaf(current)){
-            if((left && current->val.lower.a == key) || (!left && current->val.lower.b == key)) return current;
-            else if (current->val.lower.a.x < key.x) current = current->right;
-            else current = current->left;
-        }
-        return nullptr;
-    }
-     */
-
     // TODO: Consider function to translate rank to left and right point
     template<bool lower>
     bool covers(Point<NT> p){
@@ -503,6 +476,11 @@ public:
         AVL::remove({Bridge(x),Bridge(x)});
     }
 
+    bool find(NT x){
+        Node* found = AVL::find({Bridge(x),Bridge(x)});
+        return found && found->val[0].l == x;
+    }
+
     void join(RHTree<NT,AT>* r){
         Node* tl = AVL::root, *tr = r->root;
         if(!tr) return;
@@ -532,18 +510,25 @@ public:
         RHTree<NT,AT> temp = RHTree(epsilon);
         Node* current = v;
         if(v->val == k){
-            current = v->par;
+            current = current->par;
             if(current){
                 if(AVL::isLeftChild(v)) tr.root = current->right;
                 else tl.root = current->left;
-                current->left = nullptr;
-                current->right = nullptr;
             }
-            if(tl.root) tl.root->par = nullptr;
-            if(tr.root) tr.root->par = nullptr;
-            v->left = nullptr;
-            v->right = nullptr;
             delete v;
+        } else {
+            if(v->val < k) while(current->par->par && !AVL::isLeftChild(current)) current = current->par;
+            else while(current->par->par && AVL::isLeftChild(current)) current = current->par;
+            current = current->par;
+            tl.root = current->left;
+            tr.root = current->right;
+        }
+
+        if(tl.root) tl.root->par = nullptr;
+        if(tr.root) tr.root->par = nullptr;
+        if(current) {
+            current->left = nullptr;
+            current->right = nullptr;
         }
         while(current){
             parent = current->par;
@@ -627,7 +612,6 @@ public:
         return true;
     }
 
-    // TODO: Segments for reverse direction
     template<bool uwedge>
     int witnessCheck(const Segment& b, const Segment& a1, const Segment& a2){
         const bool qr = uwedge ? left_turn(a1.l,a1.r,b.r) : left_turn(a2.r,a2.l,b.l);
@@ -736,7 +720,9 @@ public:
         uint lub = uub;
         uint llb = ulb;
 
-        while(uub != ulb && lub != llb) { // TODO: Only update moved segments
+        while(uub != ulb && lub != llb) {
+            if(!(x && y)) return false; // Insufficient precision
+
             // Get the line segment
             if (dirty_x) u = Segment(x->val[1], u_rank, epsilon);
             if (dirty_y) l = Segment(y->val[0], l_rank, -epsilon);
@@ -810,7 +796,7 @@ public:
                         llb = stepRightHull<false>(y, l_rank, lub);
                         dirty_y = true;
                     } else if (l.l.x > u.r.x) { // u lies left of l
-                        uub = stepRightHull<true>(x, u_rank, ulb);
+                        ulb = stepRightHull<true>(x, u_rank, uub);
                         dirty_x = true;
                     } else { // overlap is evidence of intersection
                         return false;

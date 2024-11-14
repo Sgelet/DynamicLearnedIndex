@@ -26,7 +26,7 @@ struct LearnedIndex {
     bool insert(NumType val){
         // Find correct line
         lineTree.insert(val);
-        std::cout << lineTree.root->size << std::endl;
+        //std::cout << lineTree.root->size << std::endl;
         // Insert into hull spanning line
         // Check if line exists
         // If not - insert into first half and check
@@ -37,6 +37,21 @@ struct LearnedIndex {
 
         // If new element is a page-bearer, split existing page
         return true;
+    }
+
+    bool remove(NumType val){
+        lineTree.remove(val);
+
+        //std::cout << lineTree.root->size << std::endl;
+        return true;
+    }
+
+    bool find(NumType val){
+        return lineTree.find(val);
+    }
+
+    void verify(){
+        lineTree.verify(lineTree.root);
     }
 };
 #endif //LEARNEDINDEX_H
