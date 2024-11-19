@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.24)
-project(DynamicConvexHull)
+project(DynamicLearnedIndex)
 
 set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_FLAGS "-O0")
+set(CMAKE_CXX_FLAGS "-O3")
 
 find_package(CGAL)
 
@@ -15,6 +15,7 @@ add_executable(LearnedIndex
         convex_hull/RankHullTree.h
         learned_index/LearnedIndex.h
         learned_index/tester.cpp
+        learned_index/Page.h
 )
 
 target_link_libraries(DynamicConvexHull CGAL::CGAL)

@@ -41,12 +41,6 @@ struct LineNode {
 
 };
 
-// TODO: Comparison function on the intervals define by s,t
-
-// TODO: Searching for covering interval (member, rank)
-
-// TODO: Predecessor/successor interval search (updates, member, rank)
-
 template<typename NumType, typename ArithType>
 class LineTree : public AVLTree<LineNode<NumType,ArithType>>{
     using Tree = AVLTree<LineNode<NumType,ArithType>>;
@@ -64,29 +58,11 @@ protected:
         x->val.t = x->right->val.t;
     }
 
-    // Note that the returned value might be the successor if no predecessor exists
-    Node* predecessor(NumType key){
-        Node* current = Tree::root;
-        while(!isLeaf(current)){
-            if(current->right->min->s < key) current = current->right;
-            else current = current->left;
-        }
-        return current;
-    }
-
-    Node* successor(NumType key){
-        Node* current = Tree::root;
-        while(!isLeaf(current)){
-            if(current->left->max->t < key) current = current->right;
-            else current = current->left;
-        }
-        return current;
-    }
 
 public:
     explicit LineTree(const int& epsilon): epsilon(epsilon){};
 
-    bool find(NumType val){
+    bool find(const NumType val){
         if(!Tree::root) return false;
         Node* current = Tree::root;
         while(!isLeaf(current)){
@@ -101,17 +77,10 @@ public:
         return current->val.hull->find(val);
     }
 
-    void insert(NumType val){
-        if(!Tree::root){
-            Tree::insert(LineNode(val,epsilon));
-            return;
-        }
+    Node* getSegment(const NumType& val, Node*& pre, Node*& succ){
+        Node* current = Tree::root;
 
-        // Find pre/post intervals
-        // If they are identical, insert into interval
-        // Else insert between intervals
-        Node* pre = nullptr, *succ = nullptr, *current = Tree::root;
-
+        if(!current) return nullptr;
         while(!isLeaf(current)){
             if(val < current->right->val.s){
                 succ = current->right;
@@ -133,6 +102,17 @@ public:
         if(pre) while(!isLeaf(pre)) pre = pre->right;
         if(succ) while(!isLeaf(succ)) succ = succ->left;
 
+        return current;
+    }
+
+    LineNode* getSegment(const NumType& val){
+        Node* a,*b = nullptr, *c = nullptr;
+        a = getSegment(val,b,c);
+        return a ? &(a->val) : nullptr;
+    }
+
+    // Inserts at a given node with pre and succ
+    void insert(const NumType val, Node* current, Node* pre, Node* succ){
         Node* l = current,* r = current;
         Hull* lhull = nullptr, *rhull= nullptr;
         bool ljoined = false, lone = false, between = false, dirty_l = false, dirty_r = false;
@@ -237,40 +217,32 @@ public:
                 Tree::remove(r);
             }
         }
-
-        //verify(Tree::root);
     }
 
-    void remove(NumType val){
+    void insert(const NumType val){
         if(!Tree::root){
+            Tree::insert(LineNode(val,epsilon));
             return;
         }
 
         // Find pre/post intervals
         // If they are identical, insert into interval
         // Else insert between intervals
-        Node* pre = nullptr, *succ = nullptr, *current = Tree::root;
+        Node* pre = nullptr, *succ = nullptr;
+        Node* current = getSegment(val, pre, succ);
 
-        while(!isLeaf(current)){
-            if(val < current->right->val.s){
-                succ = current->right;
-                current = current->left;
-            } else {
-                pre = current->left;
-                current = current->right;
-            }
-        }
+        insert(val,current,pre,succ);
 
+        //verify(Tree::root);
+    }
+
+    void remove(const NumType val, Node* current, Node* pre, Node* succ){
         // Not found
         if(!current || val < current->val.s || current->val.t < val) return;
 
-        // Go-to leaves
-        if(pre) while(!isLeaf(pre)) pre = pre->right;
-        if(succ) while(!isLeaf(succ)) succ = succ->left;
-
         Node* l = current,* r = current;
-        Hull* lhull = nullptr, *rhull= nullptr;
-        bool ljoined = false, lone = false, between = false, dirty_l = false, dirty_r = false;
+        Hull* lhull, *rhull;
+        bool ljoined;
 
         lhull = current->val.hull.get();
         lhull->remove(val);
@@ -338,7 +310,19 @@ public:
                 Tree::remove(r);
             }
         }
+    }
 
+    void remove(NumType val){
+        if(!Tree::root){
+            return;
+        }
+
+        // Find pre/post intervals
+        // If they are identical, insert into interval
+        // Else insert between intervals
+        Node* pre = nullptr, *succ = nullptr, *current = getSegment(val,pre,succ);
+
+        remove(val,current,pre,succ);
     }
 
     void verify(Node* v){

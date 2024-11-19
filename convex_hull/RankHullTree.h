@@ -101,6 +101,12 @@ using S = typename std::make_signed<T>::type;
 };
 
 template<typename NT>
+inline
+NT floor(const Quotient<NT> q)  {
+    return (q.n - q.n%q.d)/q.d;
+}
+
+template<typename NT>
 struct Bridge{
     NT l,r; // Left and Right values
     uint ldiff,rdiff; // Difference in rank to median
@@ -156,8 +162,18 @@ struct Segment{
 
     // TODO: Does not work for q left of l if T unsigned
     inline
-    Point<AT> eval(AT q) const {
-        return Point<AT>(q, AT(l.y) + slope * (AT(q)-(AT(l.x))));
+    AT y_at_x(const AT x) const {
+        return AT(l.y) + slope * (x - AT(l.x));
+    }
+
+    inline
+    AT x_at_y(const AT y) const {
+        return (y - AT(l.y))/slope + AT(l.x);
+    }
+
+    inline
+    Point<AT> eval(const AT& q) const {
+        return Point<AT>(q, y_at_x(q));
     }
 
     inline
@@ -178,7 +194,6 @@ private:
     int epsilon = 0;
 
 protected:
-    // TODO: Computations done in NT not in AT
     inline
     bool left_turn(const Point<NT>& a, const Point<NT>& b, const Point<NT>& c){
         return (a.x - c.x)*(b.y-c.y) > (b.x - c.x)*(a.y - c.y);
