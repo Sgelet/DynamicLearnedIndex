@@ -105,7 +105,7 @@ public:
         return current;
     }
 
-    LineNode* getSegment(const NumType& val){
+    LineNode* getSegment(const NumType& val) {
         Node* a,*b = nullptr, *c = nullptr;
         a = getSegment(val,b,c);
         return a ? &(a->val) : nullptr;

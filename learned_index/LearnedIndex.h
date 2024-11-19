@@ -152,6 +152,20 @@ struct LearnedIndex {
         return false;
     }
 
+    std::vector<NumType> range(const NumType& lo, const NumType& hi) {
+        int i = getPage(lo,lineTree.getSegment(lo));
+        int j;
+        std::vector<NumType> res;
+        for(;i != -1; i=pages[i].succ){
+            for(auto& v: pages[i].data) {
+                if (v < lo) continue;
+                else if (v > hi) return res;
+                res.emplace_back(v);
+            }
+        }
+        return res;
+    }
+
     void verify(){
         lineTree.verify(lineTree.root);
 
