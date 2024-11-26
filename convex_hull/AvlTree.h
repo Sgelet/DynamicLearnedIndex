@@ -226,8 +226,6 @@ public:
         tl.root = nullptr;
     }
 
-
-
 protected:
 
     void joinRight(Node* tl, Node* x, Node* tr){

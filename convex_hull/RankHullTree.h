@@ -12,6 +12,10 @@
 #include "AvlTree.h"
 #define isLeaf this->isLeaf
 
+#ifndef OPT
+#define OPT false
+#endif
+
 template<typename T>
 T gcd(T a, T b){
 
@@ -182,16 +186,13 @@ struct Segment{
     }
 };
 
-template<typename NT, typename AT>
+template<typename NT, int epsilon, typename AT>
 class RHTree : public AVLTree<Bridges<NT>>{
-using AVL = AVLTree<Bridges<NT>>;
+using AVL = ::AVLTree<Bridges<NT>>;
 using Node = typename AVL::Node;
-using Bridge = Bridge<NT>;
-using Segment = Segment<NT,AT>;
+using Bridge = ::Bridge<NT>;
+using Segment = ::Segment<NT,AT>;
 
-
-private:
-    int epsilon = 0;
 
 protected:
     inline
@@ -415,7 +416,7 @@ protected:
             else stepLeft<lower>(current,v);
         }
 
-        return Segment(current->val[lower], v, lower ? epsilon : -epsilon);
+        return Segment(current->val[lower], v + (OPT ? lower ? -epsilon : epsilon : 0), lower ? epsilon : -epsilon);
     }
 
     // Computes the segment whose left endpoint has rank r
@@ -432,7 +433,7 @@ protected:
             else stepLeft<lower>(current,v);
         }
 
-        return Segment(current->val[lower],v, lower ? epsilon : -epsilon);
+        return Segment(current->val[lower],v + (OPT ? lower ? -epsilon : epsilon : 0), lower ? epsilon : -epsilon);
     }
 
     // TODO: Consider function to translate rank to left and right point
@@ -481,8 +482,6 @@ protected:
 
 
 public:
-    explicit RHTree(const int& epsilon): epsilon(epsilon){};
-
     void insert(NT x){
         AVL::insert({Bridge(x),Bridge(x)});
     }
@@ -496,7 +495,11 @@ public:
         return found && found->val[0].l == x;
     }
 
-    void join(RHTree<NT,AT>* r){
+    size_t size_in_bytes(){
+        return sizeof(Node)*AVL::size(this->root);
+    }
+
+    void join(RHTree<NT,epsilon,AT>* r){
         Node* tl = AVL::root, *tr = r->root;
         if(!tr) return;
         else if (!tl){
@@ -517,12 +520,12 @@ public:
         r->root = nullptr;
     }
 
-    void split(const Bridges<NT>& k, RHTree<NT,AT>* r){
+    void split(const Bridges<NT>& k, RHTree<NT,epsilon,AT>* r){
         Node* parent;
         Node* v = AVL::find(k);
-        RHTree<NT,AT> tl = RHTree(epsilon);
-        RHTree<NT,AT> tr = RHTree(epsilon);
-        RHTree<NT,AT> temp = RHTree(epsilon);
+        RHTree<NT,epsilon,AT> tl = RHTree();
+        RHTree<NT,epsilon,AT> tr = RHTree();
+        RHTree<NT,epsilon,AT> temp = RHTree();
         Node* current = v;
         if(v->val == k){
             current = current->par;
@@ -683,7 +686,7 @@ public:
         int direction;
 
         while(ub != lb){
-            b = Segment(x->val[!uwedge], v, uwedge ? -epsilon: epsilon);
+            b = Segment(x->val[!uwedge], v + (OPT ? uwedge ? epsilon : -epsilon : 0), uwedge ? -epsilon: epsilon);
 
             direction = witnessCheck<uwedge>(b,a1,a2);
 
@@ -739,8 +742,14 @@ public:
             if(!(x && y)) return false; // Insufficient precision
 
             // Get the line segment
-            if (dirty_x) u = Segment(x->val[1], u_rank, epsilon);
-            if (dirty_y) l = Segment(y->val[0], l_rank, -epsilon);
+            if (dirty_x){
+                if constexpr (OPT) u = Segment(x->val[1], u_rank - epsilon, epsilon);
+                else u = Segment(x->val[1], u_rank, epsilon);
+            }
+            if (dirty_y){
+                if constexpr (OPT) l = Segment(y->val[0], l_rank + epsilon, -epsilon);
+                else l = Segment(y->val[0], l_rank, -epsilon);
+            }
 
             // Reset
             dirty_x = false;
@@ -761,10 +770,10 @@ public:
                     return true;
                 }
 
-                if (l.r.x < u.l.x) { // l lies left of u
+                if (l.r.x < u.l.x && l.r.y < u.l.y) { // l lies left of u
                     uub = stepLeftHull<true>(x, u_rank, ulb);
                     llb = stepRightHull<false>(y, l_rank, lub);
-                } else if (l.l.x > u.r.x) { // l lies right of u
+                } else if (l.l.x > u.r.x && l.l.y > u.r.y) { // l lies right of u
                     ulb = stepRightHull<true>(x, u_rank, uub);
                     lub = stepLeftHull<false>(y, l_rank, llb);
                 } else { // l and u overlap - existence of intersection follows
@@ -787,10 +796,10 @@ public:
                     dirty_y = true;
                 }
                 if (ul_in_l && ll_in_u) { // Case 3: step rightmost to left
-                    if (l.l.x > u.r.x) { // l lies right of u
+                    if (l.l.x > u.r.x && l.l.y > u.r.y) { // l.left dominates u.right
                         lub = stepLeftHull<false>(y, l_rank, llb);
                         dirty_y = true;
-                    } else if (l.r.x < u.l.x) { // u lies right of l
+                    } else if (l.r.x < u.l.x && l.r.y < u.l.y) { // u.left dominates l.right
                         uub = stepLeftHull<true>(x, u_rank, ulb);
                         dirty_x = true;
                     } else { // overlap is evidence of intersection
@@ -807,10 +816,10 @@ public:
                     dirty_y = true;
                 }
                 if (ur_in_l && lr_in_u) { // step leftmost to right
-                    if (l.r.x < u.l.x) { // l lies left of u
+                    if (l.r.x < u.l.x && l.r.y < u.l.y) { // u.left dominates l.right
                         llb = stepRightHull<false>(y, l_rank, lub);
                         dirty_y = true;
-                    } else if (l.l.x > u.r.x) { // u lies left of l
+                    } else if (l.l.x > u.r.x && l.l.y > u.r.y) { // l.left dominates u.right
                         ulb = stepRightHull<true>(x, u_rank, uub);
                         dirty_x = true;
                     } else { // overlap is evidence of intersection

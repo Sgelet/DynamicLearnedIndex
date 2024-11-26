@@ -2,6 +2,7 @@
 #define LEARNEDINDEX_H
 
 #include <unordered_map>
+#include <iostream>
 #include "LineTree.h"
 
 /*
@@ -11,6 +12,14 @@ struct less{
         return lhs.max().y() < rhs;
     }
 };*/
+
+#ifndef STORAGE
+#define STORAGE true
+#endif
+
+#ifndef OPT
+#define OPT false
+#endif
 
 template<typename NumType>
 struct Page{
@@ -26,30 +35,32 @@ struct Page{
     }
 
     bool remove(NumType v){
-        auto r = std::equal_range(data.begin(),data.end(), v);
-        data.erase(r.first,r.second);
+        auto iter = std::lower_bound(data.begin(),data.end(), v);
+        if(iter != data.end() && *iter == v) data.erase(iter);
 
         return data.empty();
     }
 };
 
 
-template<typename NumType, typename ArithType = Quotient<NumType>>
+template<typename NumType, int epsilon = 255, typename ArithType = Quotient<NumType>>
 struct LearnedIndex {
-    using Segment = LineNode<NumType,ArithType>;
+    using Segment = LineNode<NumType,epsilon,ArithType>;
     using Node = typename AVLTree<Segment>::Node;
-    using Page = Page<NumType>;
+    using Page = ::Page<NumType>;
 
-    const uint epsilon = 255;
     int min_index = -1;
-    std::unordered_map<int,uint> h;
+    std::unordered_map<NumType,uint> h;
     std::vector<Page> pages;
-    LineTree<NumType,ArithType> lineTree = LineTree<NumType,ArithType>(epsilon);
+    LineTree<NumType,epsilon,ArithType> lineTree = LineTree<NumType,epsilon,ArithType>();
 
+    LearnedIndex()= default;
+
+protected:
     int index(NumType v){
         uint min = -1;
         int res = -1;
-        int id = v/epsilon;
+        NumType id = v/epsilon;
         for(int i=-1; i<=1; i++){
             auto search = h.find(id+i);
             if(search != h.end()){
@@ -85,15 +96,20 @@ struct LearnedIndex {
         return lineTree.getSegment(val,prev,succ);
     }
 
+public:
     void insert(NumType val){
         Node* p = nullptr, *s = nullptr, *c = getPredSeg(val,p,s);
         Segment* f = c ? &(c->val) : p ? &(p->val) : s ? &(s->val) : nullptr;
+        int i,succ = -1;
+        NumType id = val/epsilon;
 
-        int i = getPage(val,f);
-        int succ = -1;
-        int id = val/epsilon;
+        if constexpr (STORAGE && !OPT) {
+            i = getPage(val, f);
+        }
 
         lineTree.insert(val,c,p,s); // Needs to happen after getPage
+
+        if constexpr (!STORAGE || OPT) return;
 
         if(i >= 0){
             succ = pages[i].succ;
@@ -119,27 +135,31 @@ struct LearnedIndex {
 
     void remove(NumType val){
         Node* p = nullptr,* s = nullptr, *c = getPredSeg(val,p,s);
+        if(!c) return; // Value not found
         Segment* f = &(c->val);
-        int i = getPage(val,f);
 
-        if(pages[i].data.front()/epsilon != val/epsilon) i = pages[i].succ;
+        if constexpr (STORAGE && !OPT) {
+            int i = getPage(val, f);
+            if(i==-1) return;
 
-        if(pages[i].remove(val)) {
-            h.erase(val/epsilon);
-            if(i == min_index) min_index = pages[i].succ;
-            if(pages[i].prev >= 0) pages[pages[i].prev].succ = pages[i].succ;
-            if(pages[i].succ >= 0) pages[pages[i].succ].prev = pages[i].prev;
-            int j = pages.size()-1;
-            if(i!=j) {
-                h[pages[j].data.front()/epsilon] = i;
-                if (min_index == j) min_index = i;
-                if (pages[j].prev >= 0) pages[pages[j].prev].succ = i;
-                if (pages[j].succ >= 0) pages[pages[j].succ].prev = i;
-                std::swap(pages[i], pages[j]);
+            if (pages[i].data.front() / epsilon != val / epsilon) i = pages[i].succ;
+
+            if (pages[i].remove(val)) {
+                h.erase(val / epsilon);
+                if (i == min_index) min_index = pages[i].succ;
+                if (pages[i].prev >= 0) pages[pages[i].prev].succ = pages[i].succ;
+                if (pages[i].succ >= 0) pages[pages[i].succ].prev = pages[i].prev;
+                int j = pages.size() - 1;
+                if (i != j) {
+                    h[pages[j].data.front() / epsilon] = i;
+                    if (min_index == j) min_index = i;
+                    if (pages[j].prev >= 0) pages[pages[j].prev].succ = i;
+                    if (pages[j].succ >= 0) pages[pages[j].succ].prev = i;
+                    std::swap(pages[i], pages[j]);
+                }
+                pages.pop_back();
             }
-            pages.pop_back();
         }
-
         lineTree.remove(val,c,p,s);
     }
 
@@ -166,40 +186,18 @@ struct LearnedIndex {
         return res;
     }
 
-    void verify(){
-        lineTree.verify(lineTree.root);
+    size_t size_in_bytes(){
+        size_t res = sizeof(*this);
+        res += sizeof(NumType) * h.size(); // Approximate size of hashmap
+        res += sizeof(Page) * pages.capacity();
+        if(lineTree.root) res += sizeof(NumType)*lineTree.root->val.count;
+        res += lineTree.size_in_bytes();
+        return res;
+    }
 
-        NumType prev_val = 0;
-        int prev_ind = -1;
-        int i;
-        int count = 0;
-        for(i = min_index; i!=-1;i=pages[i].succ){
-            if(prev_val >= pages[i].data.front()){
-                std::cout << "Wrong order" << std::endl;
-            }
-            if(pages[i].prev != prev_ind){
-                std::cout << "Wrong prev" << std::endl;
-            }
-            prev_ind = i;
-            prev_val = pages[i].data.front();
-            count++;
-        }
-        if(count != pages.size()){
-            std::cout << "missed a spot" << std::endl;
-        }
-        if(prev_ind == -1) return;
-        prev_val = pages[prev_ind].data.back();
-        i = pages[prev_ind].prev;
-        for(; i !=-1 ; i = pages[i].prev){
-            if(prev_val < pages[i].data.back()){
-                std::cout << "Wrong order back" << std::endl;
-            }
-            if(pages[i].succ != prev_ind){
-                std::cout << "Wrong succ" << std::endl;
-            }
-            prev_ind = i;
-            prev_val = pages[i].data.back();
-        }
+    int segments_count() {
+        if(!lineTree.root) return 0;
+        else return lineTree.root->size;
     }
 };
 #endif //LEARNEDINDEX_H

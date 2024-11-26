@@ -9,9 +9,9 @@
 #include "../convex_hull/RankHullTree.h"
 #define isLeaf this->isLeaf
 
-template<typename NumType, typename ArithType>
+template<typename NumType, uint epsilon, typename ArithType>
 struct LineNode {
-    std::shared_ptr<RHTree<NumType,ArithType>> hull;
+    std::shared_ptr<RHTree<NumType,epsilon,ArithType>> hull;
     Segment<NumType,ArithType> line;
     NumType s,t;
     uint count = 1;
@@ -21,16 +21,16 @@ struct LineNode {
         return hull->findLine(line);
     }
 
-    LineNode(NumType val, const uint& epsilon){
-        hull = std::make_shared<RHTree<NumType,ArithType>>(epsilon);
+    explicit LineNode(NumType val){
+        hull = std::make_shared<RHTree<NumType,epsilon,ArithType>>();
         hull->insert(val);
         hull->findLine(line);
         s = val;
         t = val;
     }
 
-    explicit LineNode(RHTree<NumType, ArithType> *& h) {
-        hull = std::shared_ptr<RHTree<NumType,ArithType>>(h);
+    explicit LineNode(RHTree<NumType, epsilon, ArithType> *& h) {
+        hull = std::shared_ptr<RHTree<NumType, epsilon, ArithType>>(h);
         hull->findLine(line);
         s = (*(hull->root->min))[0].l;
         t = (*(hull->root->max))[0].r;
@@ -41,14 +41,13 @@ struct LineNode {
 
 };
 
-template<typename NumType, typename ArithType>
-class LineTree : public AVLTree<LineNode<NumType,ArithType>>{
-    using Tree = AVLTree<LineNode<NumType,ArithType>>;
+template<typename NumType, uint epsilon, typename ArithType>
+class LineTree : public AVLTree<LineNode<NumType, epsilon, ArithType>>{
+    using LineNode = ::LineNode<NumType, epsilon, ArithType>;
+    using Tree = ::AVLTree<LineNode>;
     using Node = typename Tree::Node;
-    using LineNode = LineNode<NumType,ArithType>;
-    using Hull = RHTree<NumType,ArithType>;
+    using Hull = ::RHTree<NumType,epsilon, ArithType>;
 
-    uint epsilon;
 
 protected:
     void onUpdate(Node* x){
@@ -60,8 +59,6 @@ protected:
 
 
 public:
-    explicit LineTree(const int& epsilon): epsilon(epsilon){};
-
     bool find(const NumType val){
         if(!Tree::root) return false;
         Node* current = Tree::root;
@@ -75,6 +72,24 @@ public:
         if(val < current->val.s) return false;
         if(current->val.t < val) return false;
         return current->val.hull->find(val);
+    }
+
+    size_t size_in_bytes(){
+        size_t res = 0;
+        if(!Tree::root) return sizeof *this;
+        Node* x;
+        std::stack<Node*> s;
+        for(s.push(Tree::root);!s.empty();){ // Iterative in-order traversal
+            x = s.top();
+            s.pop();
+            res += sizeof(Node) + sizeof(LineNode) + x->val.hull->size_in_bytes();
+            if(!isLeaf(x)) {
+                if(x->right) s.push(x->right);
+                if(x->left) s.push(x->left);
+                continue;
+            }
+        }
+        return res;
     }
 
     Node* getSegment(const NumType& val, Node*& pre, Node*& succ){
@@ -122,7 +137,7 @@ public:
             lhull = current->val.hull.get();
             lhull->insert(val);
             if (!current->val.findLine()) { // Value splits line
-                rhull = new Hull(epsilon);
+                rhull = new Hull();
                 lhull->split({Bridge(val),Bridge(val)}, rhull);
                 current->val.t = (*(lhull->root->max))[0].r;
                 current->val.count = lhull->root->size;
@@ -162,7 +177,7 @@ public:
                 rhull->insert(val);
                 if (!r->val.findLine()){
                     rhull->remove(val);
-                    Tree::insert(LineNode(val,epsilon),r); // No join possible, insert as single element
+                    Tree::insert(LineNode(val),r); // No join possible, insert as single element
                 } else{
                     dirty_r = true;
                     r->val.s = val;
@@ -182,7 +197,7 @@ public:
                 }
                 return;
             } else if (!ljoined && !rhull){
-                Tree::insert(LineNode(val,epsilon),l);
+                Tree::insert(LineNode(val),l);
                 return;
             }
         }
@@ -221,7 +236,7 @@ public:
 
     void insert(const NumType val){
         if(!Tree::root){
-            Tree::insert(LineNode(val,epsilon));
+            Tree::insert(LineNode(val));
             return;
         }
 
@@ -267,7 +282,7 @@ public:
         }
 
         if (!current->val.findLine()) { // Value splits line
-            rhull = new Hull(epsilon);
+            rhull = new Hull();
             lhull->split({Bridge(val),Bridge(val)}, rhull);
             current->val.t = (*(lhull->root->max))[0].r;
             current->val.count = lhull->root->size;
@@ -325,6 +340,7 @@ public:
         remove(val,current,pre,succ);
     }
 
+    /*
     void verify(Node* v){
         if(!v) return;
         if(isLeaf(v)){
@@ -352,5 +368,6 @@ public:
             verify(v->right);
         }
     }
+     */
 };
 #endif //DYNAMICCONVEXHULL_LINETREE_H
