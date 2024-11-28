@@ -416,7 +416,7 @@ protected:
             else stepLeft<lower>(current,v);
         }
 
-        return Segment(current->val[lower], v + (OPT ? lower ? -epsilon : epsilon : 0), lower ? epsilon : -epsilon);
+        return Segment(current->val[lower], NT(v) + (OPT ? lower ? -epsilon : epsilon : 0), lower ? epsilon : -epsilon);
     }
 
     // Computes the segment whose left endpoint has rank r
@@ -433,7 +433,7 @@ protected:
             else stepLeft<lower>(current,v);
         }
 
-        return Segment(current->val[lower],v + (OPT ? lower ? -epsilon : epsilon : 0), lower ? epsilon : -epsilon);
+        return Segment(current->val[lower],NT(v) + (OPT ? lower ? -epsilon : epsilon : 0), lower ? epsilon : -epsilon);
     }
 
     // TODO: Consider function to translate rank to left and right point
@@ -686,7 +686,7 @@ public:
         int direction;
 
         while(ub != lb){
-            b = Segment(x->val[!uwedge], v + (OPT ? uwedge ? epsilon : -epsilon : 0), uwedge ? -epsilon: epsilon);
+            b = Segment(x->val[!uwedge], NT(v) + (OPT ? uwedge ? epsilon : -epsilon : 0), uwedge ? -epsilon: epsilon);
 
             direction = witnessCheck<uwedge>(b,a1,a2);
 
@@ -743,7 +743,7 @@ public:
 
             // Get the line segment
             if (dirty_x){
-                if constexpr (OPT) u = Segment(x->val[1], u_rank - epsilon, epsilon);
+                if constexpr (OPT) u = Segment(x->val[1], NT(u_rank) - epsilon, epsilon);
                 else u = Segment(x->val[1], u_rank, epsilon);
             }
             if (dirty_y){

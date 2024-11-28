@@ -99,6 +99,7 @@ protected:
 public:
     void insert(NumType val){
         Node* p = nullptr, *s = nullptr, *c = getPredSeg(val,p,s);
+        if(c && c->val.hull->find(val)) return; // Element exists
         Segment* f = c ? &(c->val) : p ? &(p->val) : s ? &(s->val) : nullptr;
         int i,succ = -1;
         NumType id = val/epsilon;

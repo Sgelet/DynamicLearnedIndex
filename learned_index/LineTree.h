@@ -340,7 +340,7 @@ public:
         remove(val,current,pre,succ);
     }
 
-    /*
+
     void verify(Node* v){
         if(!v) return;
         if(isLeaf(v)){
@@ -368,6 +368,6 @@ public:
             verify(v->right);
         }
     }
-     */
+
 };
 #endif //DYNAMICCONVEXHULL_LINETREE_H
