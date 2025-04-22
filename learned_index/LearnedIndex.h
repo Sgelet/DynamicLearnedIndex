@@ -61,7 +61,7 @@ protected:
         uint min = -1;
         int res = -1;
         NumType id = v/epsilon;
-        for(int i=-1; i<=1; i++){
+        for(int i=-2; i<=2; i++){
             auto search = h.find(id+i);
             if(search != h.end()){
                 NumType t = pages[search->second].data.front();
@@ -97,11 +97,30 @@ protected:
     }
 
 public:
+    bool runPages(){
+        long succ_seen = -1;
+        for(uint i=0; i<pages.size(); ++i){
+            if(pages[i].prev == -1 && i != min_index){
+                std::cout << "missing prev" << std::endl;
+                return false;
+            }
+            if(pages[i].succ == -1){
+                if(succ_seen < 0) succ_seen = i;
+                else{
+                    std::cout << "too many succ missing" << std::endl;
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
     void insert(NumType val){
         Node* p = nullptr, *s = nullptr, *c = getPredSeg(val,p,s);
         if(c && c->val.hull->find(val)) return; // Element exists
         Segment* f = c ? &(c->val) : p ? &(p->val) : s ? &(s->val) : nullptr;
-        int i,succ = -1;
+        int i = -1,succ = -1;
         NumType id = val/epsilon;
 
         if constexpr (STORAGE && !OPT) {
@@ -143,7 +162,9 @@ public:
             int i = getPage(val, f);
             if(i==-1) return;
 
-            if (pages[i].data.front() / epsilon != val / epsilon) i = pages[i].succ;
+            if (pages[i].data.front() / epsilon != val / epsilon){
+                i = pages[i].succ;
+            }
 
             if (pages[i].remove(val)) {
                 h.erase(val / epsilon);
@@ -166,7 +187,7 @@ public:
 
     bool find(NumType val){
         int i = getPage(val,lineTree.getSegment(val));
-        for(;i != -1; i=pages[i].succ) {
+        for(;i != -1 && pages[i].data.front() <= val; i=pages[i].succ) {
             auto search = std::lower_bound(pages[i].data.begin(), pages[i].data.end(), val);
             if (search != pages[i].data.end()) return val == *search;
         }
